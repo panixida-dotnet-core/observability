@@ -1,166 +1,246 @@
-## What to do after creating a repository from this template
+# PANiXiDA.Core.Observability
 
-### 1. Rename repository metadata
-- change repository name
-- change solution / project names
-- change package ID
-- change assembly name
-- change repository URLs
-- change ProjectReference in test project
+`PANiXiDA.Core.Observability` is a .NET package that adds PANiXiDA host observability conventions on top of OpenTelemetry.
 
-### 2. Update package metadata
-- description
-- tags
-
-### 3. Update documentation
-- replace this template README with the project README
-- fill all placeholder sections
-- update badges
-- update installation instructions
-- add real usage examples
-
-### 4. Configure GitHub repository
-- check repository visibility
-- configure default branch
-- configure branch protection rules
-- configure Issues / Discussions if needed
-- configure repository description, topics and website
-
-### 5. Prepare the first release
-- update versioning configuration pathFilters in version.json
-- verify NuGet metadata
-- verify README and icon inside the package
-- publish the first package version
-- the version is updated automatically based on the commit history
-
----
-
-# Universal README template for the NuGet package
-
-# <PackageName>
-
-`<PackageName>` is a .NET library for <short purpose>.
-
-It is designed for <target audience> who need <main value / main scenario>.
+It is intended for ASP.NET Core services that need consistent logging, metrics, tracing, resource metadata, and OTLP exporter wiring without duplicating bootstrap code in every service.
 
 ## Status
 
-[![CI](https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/ci.yml/badge.svg)](https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/ci.yml)
-[![NuGet](https://img.shields.io/nuget/v/<PACKAGE_ID>.svg)](https://www.nuget.org/packages/<PACKAGE_ID>)
-[![NuGet downloads](https://img.shields.io/nuget/dt/<PACKAGE_ID>.svg)](https://www.nuget.org/packages/<PACKAGE_ID>)
+[![CI](https://github.com/panixida-dotnet-core/observability/actions/workflows/ci.yml/badge.svg)](https://github.com/panixida-dotnet-core/observability/actions/workflows/ci.yml)
+[![NuGet](https://img.shields.io/nuget/v/PANiXiDA.Core.Observability.svg)](https://www.nuget.org/packages/PANiXiDA.Core.Observability)
+[![NuGet downloads](https://img.shields.io/nuget/dt/PANiXiDA.Core.Observability.svg)](https://www.nuget.org/packages/PANiXiDA.Core.Observability)
 [![Target Framework](https://img.shields.io/badge/target-net10.0-512BD4)](https://dotnet.microsoft.com/)
-[![License](https://img.shields.io/github/license/<OWNER>/<REPOSITORY>.svg)](LICENSE)
+[![License](https://img.shields.io/github/license/panixida-dotnet-core/observability.svg)](LICENSE)
 
 ## Overview
 
-Describe:
+The package configures OpenTelemetry for ASP.NET Core hosts with:
 
-- what problem this package solves;
-- why it exists;
-- where it fits in the system or ecosystem;
-- how it differs from alternatives, if that matters.
+- resource metadata based on OpenTelemetry resource defaults, application assembly version, and machine name;
+- ASP.NET Core, HTTP client, runtime, and Npgsql instrumentation;
+- OpenTelemetry logging with formatted messages, scopes, and parsed state values;
+- OTLP exporters for logs, metrics, and traces;
+- configuration-driven OTLP exporter options through standard OpenTelemetry keys.
 
-Keep this section short and practical.
-
-## Features
-
-- Feature 1
-- Feature 2
-- Feature 3
-- Feature 4
-- Feature 5
-
-## Quick Start
-
-### Requirements
+## Requirements
 
 - .NET 10 SDK
+- ASP.NET Core application using `WebApplicationBuilder`
+- OTLP-compatible collector or backend when telemetry export is enabled
 
-### Installation
+## Installation
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="<PACKAGE_ID>" Version="..." />
+  <PackageReference Include="PANiXiDA.Core.Observability" Version="1.0.0" />
 </ItemGroup>
-````
-
-### Minimal import
-
-```csharp
-using <RootNamespace>;
 ```
 
-### First example
+## Quick Start
 
 ```csharp
-// Add a minimal example here
+using PANiXiDA.Core.Observability;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability(typeof(Program).Assembly);
+
+var app = builder.Build();
+
+app.MapGet("/", () => Results.Ok());
+
+app.Run();
 ```
+
+Pass the application assembly explicitly so `service.version` is taken from the host application, not from this NuGet package.
 
 ## Usage
 
-### Basic usage
+### Typical ASP.NET Core Host
 
 ```csharp
-// Add a basic example here
+using PANiXiDA.Core.Observability;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddObservability(typeof(Program).Assembly);
+
+builder.Services.AddHealthChecks();
+
+var app = builder.Build();
+
+app.MapHealthChecks("/health");
+app.MapGet("/orders/{id:guid}", (Guid id) => Results.Ok(new { id }));
+
+app.Run();
 ```
 
-### Typical scenario
+Set the service name outside the package with OpenTelemetry resource configuration:
 
-```csharp
-// Add a realistic example here
-```
-
-### Advanced scenario
-
-```csharp
-// Add an advanced example here if needed
+```bash
+OTEL_SERVICE_NAME=orders-api
 ```
 
 ## Configuration
 
-Describe configuration only if the package actually requires it.
+### Service Name
 
-Possible topics:
+Set `service.name` through the standard OpenTelemetry resource key:
 
-* environment variables;
-* `appsettings.json`;
-* feature flags;
-* external services;
-* secrets;
-* runtime prerequisites.
+```bash
+OTEL_SERVICE_NAME=orders-api
+```
 
-If the package does not require runtime configuration, say so explicitly.
+or:
+
+```bash
+OTEL_RESOURCE_ATTRIBUTES=service.name=orders-api
+```
+
+In `appsettings.json`, use flat OpenTelemetry keys such as `OTEL_SERVICE_NAME`; nested keys are not equivalent.
+
+The package does not define a custom `OpenTelemetry:ServiceName` key. If no OpenTelemetry service name is configured, `builder.Environment.ApplicationName` is used as the fallback service name required by `AddService`.
+
+### OTLP Exporter
+
+The package does not hard-code OTLP endpoint, protocol, headers, or timeout values. Configure them through standard OpenTelemetry configuration keys.
+
+### Production Minimum
+
+No OTLP exporter key is mandatory when the collector is available at the OpenTelemetry defaults. In production, configure only the values that differ from those defaults.
+
+Usually required for a deployed service:
+
+- `OTEL_SERVICE_NAME`, so the service has a stable `service.name`;
+- `OTEL_EXPORTER_OTLP_ENDPOINT` when the collector is not available at the default local endpoint.
+
+Minimal `appsettings.json` example for a service exporting to a gRPC collector:
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "OTEL_SERVICE_NAME": "orders-api",
+  "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel-collector:4317"
+}
+```
+
+`OTEL_SERVICE_NAME` can be provided either as a real environment variable or as a flat `appsettings.json` key. For containers and Kubernetes, prefer deployment environment variables so the same package binary can run with different service names.
+
+Keep OTEL keys flat in `appsettings.json`. A nested structure such as `OTEL:EXPORTER:OTLP:ENDPOINT` produces a different `IConfiguration` key and is not the same as `OTEL_EXPORTER_OTLP_ENDPOINT`.
+
+Defaults provided by OpenTelemetry are usually enough for processor and reader settings:
+
+- `OTEL_EXPORTER_OTLP_PROTOCOL` defaults to `grpc`.
+- `OTEL_EXPORTER_OTLP_ENDPOINT` defaults to `http://localhost:4317` for gRPC and `http://localhost:4318` for HTTP/protobuf.
+- `OTEL_EXPORTER_OTLP_TIMEOUT` defaults to `10000` milliseconds.
+- metrics export interval defaults to `60000` milliseconds.
+- tracing and logging exporters use batch processing by default.
+
+Set `OTEL_EXPORTER_OTLP_PROTOCOL` only when using HTTP/protobuf, typically with port `4318`:
+
+```json
+{
+  "OTEL_EXPORTER_OTLP_ENDPOINT": "http://otel-collector:4318",
+  "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf"
+}
+```
+
+### Optional Tuning
+
+Set these only when your backend or operating requirements need them:
+
+```json
+{
+  "OTEL_EXPORTER_OTLP_HEADERS": "api-key=secret",
+  "OTEL_EXPORTER_OTLP_TIMEOUT": "10000",
+  "OTEL_BSP_SCHEDULE_DELAY": "5000",
+  "OTEL_BSP_EXPORT_TIMEOUT": "30000",
+  "OTEL_BLRP_SCHEDULE_DELAY": "5000",
+  "OTEL_BLRP_EXPORT_TIMEOUT": "30000",
+  "OTEL_METRIC_EXPORT_INTERVAL": "60000",
+  "OTEL_METRIC_EXPORT_TIMEOUT": "30000"
+}
+```
+
+The same OTLP values can be provided as environment variables:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+OTEL_EXPORTER_OTLP_HEADERS=api-key=secret
+OTEL_EXPORTER_OTLP_TIMEOUT=10000
+```
+
+Use signal-specific keys in `appsettings.json` only when logs, metrics, and traces need different endpoints. These keys are supported by OpenTelemetry .NET `UseOtlpExporter`; if all signals use the same collector, prefer `OTEL_EXPORTER_OTLP_ENDPOINT`.
+
+```json
+{
+  "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://traces-collector:4317",
+  "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://metrics-collector:4317",
+  "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://logs-collector:4317"
+}
+```
+
+For HTTP/protobuf signal-specific endpoints, provide the full signal path and configure the protocol:
+
+```json
+{
+  "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+  "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://traces-collector:4318/v1/traces",
+  "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://metrics-collector:4318/v1/metrics",
+  "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://logs-collector:4318/v1/logs"
+}
+```
+
+OpenTelemetry .NET reads these keys through `IConfiguration`, so they may come from environment variables, command-line arguments, or `appsettings.json`.
+
+## Public API
+
+### AddObservability
+
+```csharp
+public static WebApplicationBuilder AddObservability(
+    this WebApplicationBuilder builder,
+    Assembly applicationAssembly)
+```
+
+Behavior:
+
+- validates `builder` and `applicationAssembly`;
+- configures OpenTelemetry resource metadata;
+- adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
+- adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
+- returns the same `WebApplicationBuilder` instance for chaining.
+
+## Production Notes
+
+- Run an OTLP collector or backend outside this package.
+- Keep endpoints, protocols, headers, and credentials in environment-specific configuration.
+- Prefer HTTP/protobuf on port `4318` or gRPC on port `4317`, depending on the collector setup.
+- Ensure application logging filters are configured intentionally, because OpenTelemetry logging follows normal `ILogger` filtering.
+- Treat exporter headers as secrets when they contain tokens or API keys.
 
 ## Project Structure
 
 ```text
 .
-├── src/
-│   └── <ProjectName>/
-├── tests/
-│   └── <ProjectName>.UnitTests/
-├── .editorconfig
-├── .gitattributes
-├── .gitignore
-├── Directory.Build.props
-├── Directory.Build.targets
-├── Directory.Packages.props
-├── global.json
-├── version.json
-├── LICENSE
-└── README.md
+|-- src/
+|   `-- PANiXiDA.Core.Observability/
+|-- tests/
+|   `-- PANiXiDA.Core.Observability.UnitTests/
+|-- Directory.Build.props
+|-- Directory.Build.targets
+|-- Directory.Packages.props
+|-- global.json
+|-- version.json
+|-- README.md
+|-- LICENSE
+`-- icon.png
 ```
-
-### Main repository files
-
-* `src/` — source code
-* `tests/` — automated tests
-* `Directory.Build.props` — shared MSBuild settings
-* `Directory.Build.targets` — shared build / packaging settings
-* `Directory.Packages.props` — centralized package versions
-* `global.json` — SDK and tooling configuration
-* `version.json` — versioning configuration
-* `README.md` — package overview and usage documentation
 
 ## Development
 
@@ -183,104 +263,20 @@ dotnet format
 dotnet test --configuration Release
 ```
 
+### Coverage
+
+```bash
+dotnet test --configuration Release --coverage --coverage-output coverage.xml --coverage-output-format xml
+```
+
 ### Pack
 
 ```bash
 dotnet pack --configuration Release
 ```
 
-### Full local validation
-
-```bash
-dotnet restore
-dotnet format
-dotnet build --configuration Release
-dotnet test --configuration Release
-dotnet pack --configuration Release
-```
-
-### Tooling and conventions
-
-This repository uses:
-
-* .NET 10
-* Nullable enabled
-* Implicit usings enabled
-* Central package management
-* GitHub Actions
-* Nerdbank.GitVersioning
-
-Add more items only if they are actually relevant for the repository.
-
-## API / Contracts / Examples
-
-Describe the public API surface here.
-
-Suggested structure:
-
-* core abstractions;
-* main entry points;
-* key extension methods;
-* important behavioral notes;
-* typical integration examples.
-
-## Roadmap / TODO
-
-Potential future improvements:
-
-* item 1;
-* item 2;
-* item 3.
-
-Remove this section if it does not provide value.
-
-## Contributing
-
-Contributions are welcome.
-
-### General rules
-
-* keep the public API intentional;
-* avoid unnecessary dependencies;
-* preserve repository conventions;
-* do not introduce breaking changes without review;
-* keep documentation updated.
-
-### Code style
-
-* follow the repository `.editorconfig`;
-* prefer readable and explicit code;
-* keep naming consistent with the existing codebase.
-
-### Tests
-
-* add or update tests for meaningful behavior changes;
-* cover both success and failure scenarios where applicable;
-* add regression tests for bug fixes.
-
-### Validation before completion
-
-Run:
-
-```bash
-dotnet restore
-dotnet format
-dotnet build --configuration Release
-dotnet test --configuration Release
-```
-
 ## License
 
-This project is licensed under the <LicenseName> license.
+This project is licensed under the Apache-2.0 license.
 
 See the [LICENSE](LICENSE) file for details.
-
-## Maintainers / Contacts
-
-Maintained by <Author / Team / Organization>.
-
-For questions or improvements, use:
-
-* GitHub Issues
-* Pull Requests
-* GitHub Discussions, if enabled

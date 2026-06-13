@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <IsPackable>true</IsPackable>
+
+        <AssemblyName>PANiXiDA.Core.Observability</AssemblyName>
+
+        <PackageId>PANiXiDA.Core.Observability</PackageId>
+        <Description>Reusable observability building blocks for .NET applications based on OpenTelemetry, including logging, metrics, tracing, correlation, and telemetry configuration.</Description>
+        <PackageTags>Observability;OpenTelemetry;Telemetry;Tracing;Metrics;Logging;DistributedTracing;Diagnostics;DotNet</PackageTags>
+
+        <RepositoryUrl>https://github.com/panixida-dotnet-core/observability</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/panixida-dotnet-core/observability</PackageProjectUrl>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Nerdbank.GitVersioning">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Npgsql.OpenTelemetry" />
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    </ItemGroup>
+</Project>

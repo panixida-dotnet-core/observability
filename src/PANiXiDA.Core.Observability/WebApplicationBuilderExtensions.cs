@@ -21,20 +21,15 @@ public static class WebApplicationBuilderExtensions
     /// Adds OpenTelemetry logging, metrics, and tracing configured for a PANiXiDA host.
     /// </summary>
     /// <param name="builder">The web application builder to configure.</param>
-    /// <param name="applicationAssembly">The application assembly used to resolve service version metadata.</param>
     /// <returns>The configured <see cref="WebApplicationBuilder"/> instance.</returns>
     /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="builder"/> or <paramref name="applicationAssembly"/> is <see langword="null"/>.
+    /// Thrown when <paramref name="builder"/> is <see langword="null"/>.
     /// </exception>
-    public static WebApplicationBuilder AddObservability(
-        this WebApplicationBuilder builder,
-        Assembly applicationAssembly)
+    public static WebApplicationBuilder AddObservability(this WebApplicationBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(applicationAssembly);
 
-        var serviceVersion = applicationAssembly.GetName().Version?.ToString()
-            ?? "unknown";
+        var serviceVersion = GetServiceVersion(Assembly.GetEntryAssembly());
 
         builder.Services
             .AddOpenTelemetry()
@@ -74,5 +69,11 @@ public static class WebApplicationBuilderExtensions
             .UseOtlpExporter();
 
         return builder;
+    }
+
+    private static string GetServiceVersion(Assembly? entryAssembly)
+    {
+        return entryAssembly?.GetName().Version?.ToString()
+            ?? "unknown";
     }
 }

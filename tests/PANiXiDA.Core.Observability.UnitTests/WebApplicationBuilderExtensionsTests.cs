@@ -21,34 +21,19 @@ public sealed class WebApplicationBuilderExtensionsTests
     [Fact(DisplayName = "AddObservability throws when builder is null")]
     public void AddObservability_ShouldThrow_WhenBuilderIsNull()
     {
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
-
-        var act = () => WebApplicationBuilderExtensions.AddObservability(null!, applicationAssembly);
+        var act = () => WebApplicationBuilderExtensions.AddObservability(null!);
 
         act.Should()
             .Throw<ArgumentNullException>()
             .WithParameterName("builder");
     }
 
-    [Fact(DisplayName = "AddObservability throws when application assembly is null")]
-    public void AddObservability_ShouldThrow_WhenApplicationAssemblyIsNull()
-    {
-        var builder = CreateBuilder();
-
-        var act = () => builder.AddObservability(null!);
-
-        act.Should()
-            .Throw<ArgumentNullException>()
-            .WithParameterName("applicationAssembly");
-    }
-
     [Fact(DisplayName = "AddObservability returns the same builder instance")]
     public void AddObservability_ShouldReturnSameBuilder()
     {
         var builder = CreateBuilder();
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
 
-        var result = builder.AddObservability(applicationAssembly);
+        var result = builder.AddObservability();
 
         result.Should().BeSameAs(builder);
     }
@@ -57,9 +42,10 @@ public sealed class WebApplicationBuilderExtensionsTests
     public void AddObservability_ShouldConfigureOpenTelemetryResourceMetadata()
     {
         var builder = CreateBuilder();
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
+        var expectedServiceVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString()
+            ?? "unknown";
 
-        builder.AddObservability(applicationAssembly);
+        builder.AddObservability();
 
         using var app = builder.Build();
         var tracerProvider = app.Services.GetRequiredService<TracerProvider>();
@@ -68,9 +54,9 @@ public sealed class WebApplicationBuilderExtensionsTests
         var traceAttributes = ToAttributes(tracerProvider.GetResource());
         var metricAttributes = ToAttributes(meterProvider.GetResource());
 
-        traceAttributes["service.version"].Should().Be(applicationAssembly.GetName().Version!.ToString());
+        traceAttributes["service.version"].Should().Be(expectedServiceVersion);
         traceAttributes["service.instance.id"].Should().Be(Environment.MachineName);
-        metricAttributes["service.version"].Should().Be(applicationAssembly.GetName().Version!.ToString());
+        metricAttributes["service.version"].Should().Be(expectedServiceVersion);
     }
 
     [Fact(DisplayName = "AddObservability uses OTEL_SERVICE_NAME instead of fallback service name")]
@@ -83,9 +69,8 @@ public sealed class WebApplicationBuilderExtensionsTests
             Environment.SetEnvironmentVariable(OtelServiceNameEnvironmentVariableName, "configured-service");
 
             var builder = CreateBuilder();
-            var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
 
-            builder.AddObservability(applicationAssembly);
+            builder.AddObservability();
 
             using var app = builder.Build();
             var tracerProvider = app.Services.GetRequiredService<TracerProvider>();
@@ -104,7 +89,6 @@ public sealed class WebApplicationBuilderExtensionsTests
     public void AddObservability_ShouldUseOtelServiceNameInsteadOfFallback_WhenConfigurationValueIsSet()
     {
         var builder = CreateBuilder();
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
 
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -112,7 +96,7 @@ public sealed class WebApplicationBuilderExtensionsTests
                 [OtelServiceNameEnvironmentVariableName] = "configured-service"
             });
 
-        builder.AddObservability(applicationAssembly);
+        builder.AddObservability();
 
         using var app = builder.Build();
         var tracerProvider = app.Services.GetRequiredService<TracerProvider>();
@@ -122,28 +106,19 @@ public sealed class WebApplicationBuilderExtensionsTests
         attributes["service.name"].Should().NotBe("Fallback.Service");
     }
 
-    [Fact(DisplayName = "AddObservability uses unknown when application assembly version is missing")]
-    public void AddObservability_ShouldUseUnknown_WhenApplicationAssemblyVersionIsMissing()
+    [Fact(DisplayName = "AddObservability uses unknown when entry assembly version is unavailable")]
+    public void AddObservability_ShouldUseUnknown_WhenEntryAssemblyVersionIsUnavailable()
     {
-        var builder = CreateBuilder();
-        var applicationAssembly = new AssemblyWithoutVersion();
-
-        builder.AddObservability(applicationAssembly);
-
-        using var app = builder.Build();
-        var tracerProvider = app.Services.GetRequiredService<TracerProvider>();
-        var attributes = ToAttributes(tracerProvider.GetResource());
-
-        attributes["service.version"].Should().Be("unknown");
+        GetServiceVersion(null).Should().Be("unknown");
+        GetServiceVersion(new AssemblyWithoutVersion()).Should().Be("unknown");
     }
 
     [Fact(DisplayName = "AddObservability configures OpenTelemetry logging options")]
     public void AddObservability_ShouldConfigureOpenTelemetryLoggingOptions()
     {
         var builder = CreateBuilder();
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
 
-        builder.AddObservability(applicationAssembly);
+        builder.AddObservability();
 
         using var app = builder.Build();
         var options = app.Services.GetRequiredService<IOptionsMonitor<OpenTelemetryLoggerOptions>>()
@@ -158,7 +133,6 @@ public sealed class WebApplicationBuilderExtensionsTests
     public void AddObservability_ShouldBindOtlpExporterOptionsFromStandardConfiguration()
     {
         var builder = CreateBuilder();
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
 
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -168,7 +142,7 @@ public sealed class WebApplicationBuilderExtensionsTests
                 ["OTEL_EXPORTER_OTLP_TIMEOUT"] = "1001"
             });
 
-        builder.AddObservability(applicationAssembly);
+        builder.AddObservability();
 
         using var app = builder.Build();
         var options = app.Services.GetRequiredService<IOptionsMonitor<OtlpExporterOptions>>();
@@ -180,7 +154,6 @@ public sealed class WebApplicationBuilderExtensionsTests
     public void AddObservability_ShouldBindSignalSpecificOtlpExporterOptionsFromStandardConfiguration()
     {
         var builder = CreateBuilder();
-        var applicationAssembly = typeof(WebApplicationBuilderExtensionsTests).Assembly;
 
         builder.Configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
@@ -190,14 +163,26 @@ public sealed class WebApplicationBuilderExtensionsTests
                 ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = "http://logs-collector:4317"
             });
 
-        builder.AddObservability(applicationAssembly);
+        builder.AddObservability();
 
         using var app = builder.Build();
         var builderOptions = GetOtlpExporterBuilderOptions(app.Services);
 
-        AssertOtlpOptions(GetOtlpExporterOptions(builderOptions, "TracingOptions"), "http://traces-collector:4317", 10000, OtlpExportProtocol.Grpc);
-        AssertOtlpOptions(GetOtlpExporterOptions(builderOptions, "MetricsOptions"), "http://metrics-collector:4317", 10000, OtlpExportProtocol.Grpc);
-        AssertOtlpOptions(GetOtlpExporterOptions(builderOptions, "LoggingOptions"), "http://logs-collector:4317", 10000, OtlpExportProtocol.Grpc);
+        AssertOtlpOptions(
+            GetOtlpExporterOptions(builderOptions, "TracingOptions"),
+            "http://traces-collector:4317",
+            10000,
+            OtlpExportProtocol.Grpc);
+        AssertOtlpOptions(
+            GetOtlpExporterOptions(builderOptions, "MetricsOptions"),
+            "http://metrics-collector:4317",
+            10000,
+            OtlpExportProtocol.Grpc);
+        AssertOtlpOptions(
+            GetOtlpExporterOptions(builderOptions, "LoggingOptions"),
+            "http://logs-collector:4317",
+            10000,
+            OtlpExportProtocol.Grpc);
     }
 
     private static WebApplicationBuilder CreateBuilder()
@@ -236,6 +221,17 @@ public sealed class WebApplicationBuilderExtensionsTests
 
         return property.GetValue(builderOptions) as OtlpExporterOptions
             ?? throw new InvalidOperationException($"OpenTelemetry OTLP builder option {propertyName} has an unexpected value.");
+    }
+
+    private static string GetServiceVersion(Assembly? entryAssembly)
+    {
+        var method = typeof(WebApplicationBuilderExtensions).GetMethod(
+            "GetServiceVersion",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("AddObservability service version resolver is missing.");
+
+        return method.Invoke(null, [entryAssembly]) as string
+            ?? throw new InvalidOperationException("AddObservability service version resolver returned an unexpected value.");
     }
 
     private static void AssertOtlpOptions(

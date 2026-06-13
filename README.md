@@ -43,7 +43,7 @@ using PANiXiDA.Core.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddObservability(typeof(Program).Assembly);
+builder.AddObservability();
 
 var app = builder.Build();
 
@@ -52,7 +52,7 @@ app.MapGet("/", () => Results.Ok());
 app.Run();
 ```
 
-Pass the application assembly explicitly so `service.version` is taken from the host application, not from this NuGet package.
+`service.version` is resolved from `Assembly.GetEntryAssembly()`, which points to the application entry assembly for a normal ASP.NET Core host.
 
 ## Usage
 
@@ -63,7 +63,7 @@ using PANiXiDA.Core.Observability;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddObservability(typeof(Program).Assembly);
+builder.AddObservability();
 
 builder.Services.AddHealthChecks();
 
@@ -204,14 +204,13 @@ OpenTelemetry .NET reads these keys through `IConfiguration`, so they may come f
 
 ```csharp
 public static WebApplicationBuilder AddObservability(
-    this WebApplicationBuilder builder,
-    Assembly applicationAssembly)
+    this WebApplicationBuilder builder)
 ```
 
 Behavior:
 
-- validates `builder` and `applicationAssembly`;
-- configures OpenTelemetry resource metadata;
+- validates `builder`;
+- configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
 - adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
 - returns the same `WebApplicationBuilder` instance for chaining.

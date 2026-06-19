@@ -1,6 +1,10 @@
+using System.Diagnostics;
 using System.Reflection;
 
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -185,12 +189,71 @@ public sealed class WebApplicationBuilderExtensionsTests
             OtlpExportProtocol.Grpc);
     }
 
+    [Fact(DisplayName = "AddObservability exports ASP.NET Core server spans")]
+    public async Task AddObservability_ShouldExportAspNetCoreServerSpans()
+    {
+        var exportedActivities = new List<Activity>();
+        var builder = CreateRunnableBuilder();
+
+        builder.WebHost.UseKestrel();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://127.0.0.1:1",
+                ["OTEL_EXPORTER_OTLP_TIMEOUT"] = "1"
+            });
+
+        builder.AddObservability();
+        builder.Services
+            .AddOpenTelemetry()
+            .WithTracing(tracerProviderBuilder =>
+            {
+                tracerProviderBuilder.AddProcessor(
+                    new SimpleActivityExportProcessor(
+                        new CollectingActivityExporter(exportedActivities)));
+            });
+
+        await using var app = builder.Build();
+        app.MapGet("/ping", () => "pong");
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        var serverAddresses = app.Services
+            .GetRequiredService<IServer>()
+            .Features
+            .Get<IServerAddressesFeature>()
+            ?? throw new InvalidOperationException("Kestrel did not expose bound addresses.");
+        var address = serverAddresses.Addresses.Single();
+
+        using var httpClient = new HttpClient();
+        using var response = await httpClient.GetAsync(
+            $"{address}/ping",
+            TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var hasServerSpan = exportedActivities.Any(activity
+            => activity.Kind == ActivityKind.Server
+            && activity.DisplayName.Contains("GET", StringComparison.OrdinalIgnoreCase)
+            && activity.DisplayName.Contains("/ping", StringComparison.OrdinalIgnoreCase));
+
+        hasServerSpan.Should().BeTrue();
+    }
+
     private static WebApplicationBuilder CreateBuilder()
     {
         return WebApplication.CreateBuilder(
             new WebApplicationOptions
             {
                 ApplicationName = "Fallback.Service",
+                EnvironmentName = "Testing"
+            });
+    }
+
+    private static WebApplicationBuilder CreateRunnableBuilder()
+    {
+        return WebApplication.CreateBuilder(
+            new WebApplicationOptions
+            {
+                ApplicationName = typeof(WebApplicationBuilderExtensionsTests).Assembly.GetName().Name,
                 EnvironmentName = "Testing"
             });
     }
@@ -255,6 +318,19 @@ public sealed class WebApplicationBuilderExtensionsTests
         public override AssemblyName GetName(bool copiedName)
         {
             return GetName();
+        }
+    }
+
+    private sealed class CollectingActivityExporter(List<Activity> exportedActivities) : BaseExporter<Activity>
+    {
+        public override ExportResult Export(in Batch<Activity> batch)
+        {
+            foreach (var activity in batch)
+            {
+                exportedActivities.Add(activity);
+            }
+
+            return ExportResult.Success;
         }
     }
 }

@@ -72,6 +72,15 @@ Before considering work complete, run:
 - `dotnet build --configuration Release`
 - `dotnet test --configuration Release`
 
+## Continuous integration
+
+- SonarQube analysis is mandatory for every pull request and push to `main`.
+- The `sonar` job must run after tests, and `publish` must depend on the
+  successful SonarQube Quality Gate.
+- Do not make SonarQube conditional or allow its failures to be ignored.
+- Keep `README.md` aligned with the required `SONAR_PROJECT_KEY`, `SONAR_TOKEN`,
+  and organization-level `SONAR_HOST_URL` configuration.
+
 ## Packaging and versioning
 
 - Package metadata must stay complete and consistent.

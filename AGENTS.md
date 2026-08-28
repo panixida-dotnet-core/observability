@@ -78,8 +78,6 @@ Before considering work complete, run:
 - The `sonar` job must run after tests, and `publish` must depend on the
   successful SonarQube Quality Gate.
 - Do not make SonarQube conditional or allow its failures to be ignored.
-- Keep `README.md` aligned with the required `SONAR_PROJECT_KEY`, `SONAR_TOKEN`,
-  and organization-level `SONAR_HOST_URL` configuration.
 
 ## Packaging and versioning
 

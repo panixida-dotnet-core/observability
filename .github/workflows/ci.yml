@@ -22,11 +22,22 @@ jobs:
           registry-user: ${{ secrets.REGISTRY_USER }}
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
 
+    sonar:
+        needs: tests
+        uses: PANiXiDA-Infrastructure/ci-cd/.github/workflows/dotnet-sonar.yml@main
+        with:
+          project-key: ${{ vars.SONAR_PROJECT_KEY }}
+        secrets:
+          sonar-token: ${{ secrets.SONAR_TOKEN }}
+          registry-user: ${{ secrets.REGISTRY_USER }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+
     publish:
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       needs: 
         - format
         - tests
+        - sonar
       uses: PANiXiDA-Infrastructure/ci-cd/.github/workflows/dotnet-publish-global-nuget.yml@main
       secrets:
         NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

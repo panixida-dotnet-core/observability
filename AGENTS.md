@@ -29,7 +29,6 @@ The goal is to keep package structure, CI, versioning, tests, documentation, and
 ## Coding rules
 
 - Preserve existing naming.
-- Do not introduce expression-bodied method declarations.
 - Prefer explicit, readable code over short clever code.
 - Public APIs must include XML documentation written in English.
 - Avoid breaking public API changes unless explicitly requested.

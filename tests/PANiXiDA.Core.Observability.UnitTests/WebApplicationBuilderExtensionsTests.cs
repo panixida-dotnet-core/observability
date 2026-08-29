@@ -207,7 +207,7 @@ public sealed class WebApplicationBuilderExtensionsTests
             throwOnError: true)!;
         var monitorType = typeof(IOptionsMonitor<>).MakeGenericType(builderOptionsType);
         var monitor = serviceProvider.GetRequiredService(monitorType);
-        var getMethod = monitorType.GetMethod(nameof(IOptionsMonitor<object>.Get), [typeof(string)])
+        var getMethod = monitorType.GetMethod(nameof(IOptionsMonitor<>.Get), [typeof(string)])
             ?? throw new InvalidOperationException("OpenTelemetry OTLP builder options monitor does not expose Get.");
 
         return getMethod.Invoke(monitor, [Options.DefaultName])

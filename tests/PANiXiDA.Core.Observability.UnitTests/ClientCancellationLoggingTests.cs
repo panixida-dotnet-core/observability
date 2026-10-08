@@ -92,7 +92,10 @@ public sealed class ClientCancellationLoggingTests
             var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("GetHeroesQuery");
             using (logger.BeginScope(new Dictionary<string, object?> { ["RequestId"] = "request-42" }))
             {
-                logger.Log(level, InvocationFailedEvent, exception, "Invocation of {Message} failed!", "GetHeroesQuery");
+                if (logger.IsEnabled(level))
+                {
+                    logger.Log(level, InvocationFailedEvent, exception, "Invocation of {Message} failed!", "GetHeroesQuery");
+                }
             }
         }
         finally

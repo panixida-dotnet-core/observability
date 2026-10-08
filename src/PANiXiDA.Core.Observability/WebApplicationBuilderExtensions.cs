@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 using OpenTelemetry;
+using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -30,6 +31,8 @@ public static class WebApplicationBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
 
         var serviceVersion = GetServiceVersion(Assembly.GetEntryAssembly());
+
+        builder.Services.AddHttpContextAccessor();
 
         builder.Services
             .AddOpenTelemetry()
@@ -59,7 +62,7 @@ public static class WebApplicationBuilderExtensions
                     .AddNpgsqlInstrumentation();
             })
             .WithLogging(
-                configureBuilder: null,
+                configureBuilder: loggingBuilder => loggingBuilder.AddProcessor<ClientCancellationLogProcessor>(),
                 configureOptions: loggingOptions =>
                 {
                     loggingOptions.IncludeFormattedMessage = true;

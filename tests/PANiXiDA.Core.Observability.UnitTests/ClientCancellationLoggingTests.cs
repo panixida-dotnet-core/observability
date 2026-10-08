@@ -16,6 +16,8 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 
 public sealed class ClientCancellationLoggingTests
 {
+    private static readonly EventId InvocationFailedEvent = new(42, "InvocationFailed");
+
     [Theory(DisplayName = "AddObservability only downgrades errors for an aborted request and a cancellation exception")]
     [InlineData(ExceptionKind.OperationCanceled, true, true, LogLevel.Error, LogLevel.Information)]
     [InlineData(ExceptionKind.TaskCanceled, true, true, LogLevel.Error, LogLevel.Information)]
@@ -60,7 +62,7 @@ public sealed class ClientCancellationLoggingTests
         record.Exception!.StackTrace.Should().NotBeNullOrEmpty();
         record.Message.Should().Be("Invocation of GetHeroesQuery failed!");
         record.Category.Should().Be("GetHeroesQuery");
-        record.EventId.Should().Be(new EventId(42, "InvocationFailed"));
+        record.EventId.Should().Be(InvocationFailedEvent);
         record.Attributes["Message"].Should().Be("GetHeroesQuery");
         record.Scopes["RequestId"].Should().Be("request-42");
         record.TraceId.Should().Be(activity.TraceId);
@@ -90,7 +92,7 @@ public sealed class ClientCancellationLoggingTests
             var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("GetHeroesQuery");
             using (logger.BeginScope(new Dictionary<string, object?> { ["RequestId"] = "request-42" }))
             {
-                logger.Log(level, new EventId(42, "InvocationFailed"), exception, "Invocation of {Message} failed!", "GetHeroesQuery");
+                logger.Log(level, InvocationFailedEvent, exception, "Invocation of {Message} failed!", "GetHeroesQuery");
             }
         }
         finally

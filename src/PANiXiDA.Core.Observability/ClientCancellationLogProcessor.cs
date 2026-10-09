@@ -11,8 +11,8 @@ internal sealed class ClientCancellationLogProcessor(IHttpContextAccessor httpCo
     public override void OnEnd(LogRecord data)
     {
         if (data.LogLevel == LogLevel.Error
-            && data.Exception is OperationCanceledException
-            && httpContextAccessor.HttpContext?.RequestAborted.IsCancellationRequested == true)
+            && httpContextAccessor.HttpContext?.RequestAborted.IsCancellationRequested == true
+            && CancellationExceptionDetector.IsCancellation(data.Exception))
         {
             data.LogLevel = LogLevel.Information;
         }

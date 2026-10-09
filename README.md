@@ -152,11 +152,11 @@ Set `OTEL_EXPORTER_OTLP_PROTOCOL` only when using HTTP/protobuf, typically with 
 
 ### Client Cancellation Logs
 
-`AddObservability` registers an HTTP context accessor and normalizes cancellation logs before OTLP batch export. An `Error` record becomes `Information` only when its top-level exception is `OperationCanceledException` (including `TaskCanceledException`) and the current HTTP request's `RequestAborted` token is canceled at the time of logging.
+`AddObservability` registers an HTTP context accessor and normalizes cancellation logs before OTLP batch export. An `Error` record becomes `Information` only when the current HTTP request's `RequestAborted` token is canceled and the exception is either `OperationCanceledException` (including `TaskCanceledException`) or a nonempty `AggregateException` containing only cancellations, including nested aggregates.
 
 The record is retained with its original message, exception, stack trace, attributes, scopes, timestamp, and trace/span IDs. Npgsql cancellations represented by `OperationCanceledException` with an inner `PostgresException` follow the same rule.
 
-Background cancellations, cancellations without an aborted request, database timeouts, bare database exceptions, wrapped/aggregate exceptions, and unrelated application failures retain their original level. Other levels, including `Critical`, are unchanged. This normalization applies only to OpenTelemetry logs; console and other logging providers are unaffected. Application logging filters still apply before this processor.
+Background cancellations, cancellations without an aborted request, database timeouts, bare database exceptions, unknown wrappers, empty or mixed aggregates, and unrelated application failures retain their original level. Other levels, including `Critical`, are unchanged. This normalization applies only to OpenTelemetry logs; console and other logging providers are unaffected. Application logging filters still apply before this processor.
 
 ### Optional Tuning
 

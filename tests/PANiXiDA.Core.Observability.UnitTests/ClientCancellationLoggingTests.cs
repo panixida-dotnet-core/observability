@@ -32,6 +32,20 @@ public sealed class ClientCancellationLoggingTests
     [InlineData(ExceptionKind.ApplicationFailure, true, true, LogLevel.Error, LogLevel.Error)]
     [InlineData(ExceptionKind.WrappedCancellation, true, true, LogLevel.Error, LogLevel.Error)]
     [InlineData(ExceptionKind.MixedAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.CancellationAggregate, true, true, LogLevel.Error, LogLevel.Information)]
+    [InlineData(ExceptionKind.NestedCancellationAggregate, true, true, LogLevel.Error, LogLevel.Information)]
+    [InlineData(ExceptionKind.DatabaseCancellationAggregate, true, true, LogLevel.Error, LogLevel.Information)]
+    [InlineData(ExceptionKind.CancellationAggregate, true, false, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.NestedCancellationAggregate, true, false, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.CancellationAggregate, false, false, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.ReversedMixedAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.NestedMixedAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.EmptyAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.NestedEmptyAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.WrappedCancellationAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.ConnectionFailureAggregate, true, true, LogLevel.Error, LogLevel.Error)]
+    [InlineData(ExceptionKind.CancellationAggregate, true, true, LogLevel.Warning, LogLevel.Warning)]
+    [InlineData(ExceptionKind.CancellationAggregate, true, true, LogLevel.Critical, LogLevel.Critical)]
     [InlineData(ExceptionKind.OperationCanceled, true, true, LogLevel.Warning, LogLevel.Warning)]
     [InlineData(ExceptionKind.OperationCanceled, true, true, LogLevel.Critical, LogLevel.Critical)]
     public void AddObservability_ShouldClassifyCancellation(
@@ -49,10 +63,15 @@ public sealed class ClientCancellationLoggingTests
         record.Exception.Should().BeSameAs(exception);
     }
 
-    [Fact(DisplayName = "AddObservability retains cancellation details and correlation through batch export")]
-    public void AddObservability_ShouldPreserveCancellationDetails()
+    [Theory(DisplayName = "AddObservability retains cancellation details and correlation through batch export")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AddObservability_ShouldPreserveCancellationDetails(bool aggregate)
     {
-        var exception = ExceptionDispatchInfo.SetCurrentStackTrace(new TaskCanceledException("Request canceled"));
+        var cancellation = ExceptionDispatchInfo.SetCurrentStackTrace(new TaskCanceledException("Request canceled"));
+        var exception = aggregate
+            ? ExceptionDispatchInfo.SetCurrentStackTrace(new AggregateException(cancellation))
+            : cancellation;
         using var activity = new Activity("request").SetIdFormat(ActivityIdFormat.W3C).Start();
 
         var record = ExportLog(exception, true, true, LogLevel.Error);
@@ -67,6 +86,10 @@ public sealed class ClientCancellationLoggingTests
         record.Scopes["RequestId"].Should().Be("request-42");
         record.TraceId.Should().Be(activity.TraceId);
         record.SpanId.Should().Be(activity.SpanId);
+        if (aggregate)
+        {
+            record.Exception.Should().BeOfType<AggregateException>().Subject.InnerExceptions.Should().ContainSingle().Which.Should().BeSameAs(cancellation);
+        }
     }
 
     private static ExportedLog ExportLog(Exception? exception, bool hasHttpContext, bool requestAborted, LogLevel level)
@@ -121,6 +144,15 @@ public sealed class ClientCancellationLoggingTests
             ExceptionKind.ApplicationFailure => new InvalidOperationException("Independent failure"),
             ExceptionKind.WrappedCancellation => new InvalidOperationException("Wrapper", new OperationCanceledException()),
             ExceptionKind.MixedAggregate => new AggregateException(new OperationCanceledException(), new InvalidOperationException()),
+            ExceptionKind.CancellationAggregate => new AggregateException(new OperationCanceledException(), new TaskCanceledException()),
+            ExceptionKind.NestedCancellationAggregate => new AggregateException(new TaskCanceledException(), new AggregateException(new OperationCanceledException())),
+            ExceptionKind.DatabaseCancellationAggregate => new AggregateException(CreateException(ExceptionKind.DatabaseCancellation)!),
+            ExceptionKind.ReversedMixedAggregate => new AggregateException(new InvalidOperationException(), new TaskCanceledException()),
+            ExceptionKind.NestedMixedAggregate => new AggregateException(new TaskCanceledException(), new AggregateException(new OperationCanceledException(), new InvalidOperationException())),
+            ExceptionKind.EmptyAggregate => new AggregateException(),
+            ExceptionKind.NestedEmptyAggregate => new AggregateException(new TaskCanceledException(), new AggregateException()),
+            ExceptionKind.WrappedCancellationAggregate => new AggregateException(new TaskCanceledException(), new InvalidOperationException("Wrapper", new TaskCanceledException())),
+            ExceptionKind.ConnectionFailureAggregate => new AggregateException(new TaskCanceledException(), new IOException("Connection closed")),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
     }
@@ -135,7 +167,16 @@ public sealed class ClientCancellationLoggingTests
         PostgresCancellation,
         ApplicationFailure,
         WrappedCancellation,
-        MixedAggregate
+        MixedAggregate,
+        CancellationAggregate,
+        NestedCancellationAggregate,
+        DatabaseCancellationAggregate,
+        ReversedMixedAggregate,
+        NestedMixedAggregate,
+        EmptyAggregate,
+        NestedEmptyAggregate,
+        WrappedCancellationAggregate,
+        ConnectionFailureAggregate
     }
 
     private sealed class RecordingExporter : BaseExporter<LogRecord>

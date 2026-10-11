@@ -1,4 +1,3 @@
-using System.Diagnostics.Metrics;
 using System.Reflection;
 
 using Microsoft.AspNetCore.Builder;
@@ -59,7 +58,6 @@ public static class WebApplicationBuilderExtensions
             {
                 metricsBuilder
                     .AddMeter("Wolverine*", "Quartz")
-                    .AddView(ConfigureDurationHistogram)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
@@ -76,41 +74,6 @@ public static class WebApplicationBuilderExtensions
             .UseOtlpExporter();
 
         return builder;
-    }
-
-    private static MetricStreamConfiguration? ConfigureDurationHistogram(Instrument instrument)
-    {
-        double scale = instrument.Unit switch
-        {
-            "s" => 1,
-            "ms" => 1000,
-            _ => 0
-        };
-        if (scale == 0)
-        {
-            return null;
-        }
-
-        var needsBoundaries = instrument switch
-        {
-            Histogram<byte> histogram => histogram.Advice?.HistogramBucketBoundaries is null,
-            Histogram<short> histogram => histogram.Advice?.HistogramBucketBoundaries is null,
-            Histogram<int> histogram => histogram.Advice?.HistogramBucketBoundaries is null,
-            Histogram<long> histogram => histogram.Advice?.HistogramBucketBoundaries is null,
-            Histogram<float> histogram => histogram.Advice?.HistogramBucketBoundaries is null,
-            Histogram<double> histogram => histogram.Advice?.HistogramBucketBoundaries is null,
-            _ => false
-        };
-        if (!needsBoundaries)
-        {
-            return null;
-        }
-
-        double[] seconds = [0, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1800, 3600];
-        return new ExplicitBucketHistogramConfiguration
-        {
-            Boundaries = [.. seconds.Select(boundary => boundary * scale)]
-        };
     }
 
     private static string GetServiceVersion(Assembly? entryAssembly)

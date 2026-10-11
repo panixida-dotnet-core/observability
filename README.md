@@ -134,6 +134,14 @@ this package does not require a Quartz dependency or a separate instrumentation
 package. Quartz 3.x instrumentation is not covered by these subscriptions.
 
 Quartz logs already use `ILogger` and follow the configured logging filters.
+
+Quartz `Histogram<double>` instruments expressed in seconds use explicit boundaries from
+1 millisecond through 1 hour, including subsecond buckets for short jobs and store operations.
+This prevents the default 0-to-5-second bucket from making a millisecond job appear to have
+a multi-second p95. Histogram count, sum, tags, and units are preserved. Other meters and
+Quartz instruments with different units are unaffected. When rolling out this change,
+calculate quantiles only from instances with the new bucket layout; do not mix old and new
+histogram boundaries in the same aggregation. Historical measurements are not rewritten.
 Exporting the built-in signals does not add last-success tracking, job deadlines,
 or alert rules.
 

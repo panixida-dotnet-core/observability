@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using System.Reflection;
 
 using Microsoft.AspNetCore.Builder;
@@ -58,6 +59,13 @@ public static class WebApplicationBuilderExtensions
             {
                 metricsBuilder
                     .AddMeter("Wolverine*", "Quartz")
+                    .AddView(instrument =>
+                        instrument.Meter.Name == "Quartz" && instrument.Unit == "s" && instrument is Histogram<double>
+                            ? new ExplicitBucketHistogramConfiguration
+                            {
+                                Boundaries = [0, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1800, 3600]
+                            }
+                            : null)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()

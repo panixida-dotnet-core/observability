@@ -23,9 +23,8 @@ public sealed class WebApplicationBuilderExtensionsTests
     {
         var act = () => WebApplicationBuilderExtensions.AddObservability(null!);
 
-        act.Should()
-            .Throw<ArgumentNullException>()
-            .WithParameterName("builder");
+        var exception = Should.Throw<ArgumentNullException>(act);
+        exception.ParamName.ShouldBe("builder");
     }
 
     [Fact(DisplayName = "AddObservability returns the same builder instance")]
@@ -35,7 +34,7 @@ public sealed class WebApplicationBuilderExtensionsTests
 
         var result = builder.AddObservability();
 
-        result.Should().BeSameAs(builder);
+        result.ShouldBeSameAs(builder);
     }
 
     [Fact(DisplayName = "AddObservability configures OpenTelemetry resource metadata")]
@@ -54,9 +53,9 @@ public sealed class WebApplicationBuilderExtensionsTests
         var traceAttributes = ToAttributes(tracerProvider.GetResource());
         var metricAttributes = ToAttributes(meterProvider.GetResource());
 
-        traceAttributes["service.version"].Should().Be(expectedServiceVersion);
-        traceAttributes["service.instance.id"].Should().Be(Environment.MachineName);
-        metricAttributes["service.version"].Should().Be(expectedServiceVersion);
+        traceAttributes["service.version"].ShouldBe(expectedServiceVersion);
+        traceAttributes["service.instance.id"].ShouldBe(Environment.MachineName);
+        metricAttributes["service.version"].ShouldBe(expectedServiceVersion);
     }
 
     [Fact(DisplayName = "AddObservability uses OTEL_SERVICE_NAME instead of fallback service name")]
@@ -76,8 +75,8 @@ public sealed class WebApplicationBuilderExtensionsTests
             var tracerProvider = app.Services.GetRequiredService<TracerProvider>();
             var attributes = ToAttributes(tracerProvider.GetResource());
 
-            attributes["service.name"].Should().Be("configured-service");
-            attributes["service.name"].Should().NotBe("Fallback.Service");
+            attributes["service.name"].ShouldBe("configured-service");
+            attributes["service.name"].ShouldNotBe("Fallback.Service");
         }
         finally
         {
@@ -102,15 +101,15 @@ public sealed class WebApplicationBuilderExtensionsTests
         var tracerProvider = app.Services.GetRequiredService<TracerProvider>();
         var attributes = ToAttributes(tracerProvider.GetResource());
 
-        attributes["service.name"].Should().Be("configured-service");
-        attributes["service.name"].Should().NotBe("Fallback.Service");
+        attributes["service.name"].ShouldBe("configured-service");
+        attributes["service.name"].ShouldNotBe("Fallback.Service");
     }
 
     [Fact(DisplayName = "AddObservability uses unknown when entry assembly version is unavailable")]
     public void AddObservability_ShouldUseUnknown_WhenEntryAssemblyVersionIsUnavailable()
     {
-        GetServiceVersion(null).Should().Be("unknown");
-        GetServiceVersion(new AssemblyWithoutVersion()).Should().Be("unknown");
+        GetServiceVersion(null).ShouldBe("unknown");
+        GetServiceVersion(new AssemblyWithoutVersion()).ShouldBe("unknown");
     }
 
     [Fact(DisplayName = "AddObservability configures OpenTelemetry logging options")]
@@ -124,9 +123,9 @@ public sealed class WebApplicationBuilderExtensionsTests
         var options = app.Services.GetRequiredService<IOptionsMonitor<OpenTelemetryLoggerOptions>>()
             .Get(Options.DefaultName);
 
-        options.IncludeFormattedMessage.Should().BeTrue();
-        options.IncludeScopes.Should().BeTrue();
-        options.ParseStateValues.Should().BeTrue();
+        options.IncludeFormattedMessage.ShouldBeTrue();
+        options.IncludeScopes.ShouldBeTrue();
+        options.ParseStateValues.ShouldBeTrue();
     }
 
     [Fact(DisplayName = "AddObservability binds OTLP exporter options from standard configuration")]
@@ -240,9 +239,9 @@ public sealed class WebApplicationBuilderExtensionsTests
         int timeoutMilliseconds,
         OtlpExportProtocol protocol = OtlpExportProtocol.HttpProtobuf)
     {
-        options.Endpoint.Should().Be(new Uri(endpoint));
-        options.Protocol.Should().Be(protocol);
-        options.TimeoutMilliseconds.Should().Be(timeoutMilliseconds);
+        options.Endpoint.ShouldBe(new Uri(endpoint));
+        options.Protocol.ShouldBe(protocol);
+        options.TimeoutMilliseconds.ShouldBe(timeoutMilliseconds);
     }
 
     private sealed class AssemblyWithoutVersion : Assembly

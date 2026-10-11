@@ -59,8 +59,8 @@ public sealed class ClientCancellationLoggingTests
 
         var record = ExportLog(exception, hasHttpContext, requestAborted, originalLevel);
 
-        record.Level.Should().Be(expectedLevel);
-        record.Exception.Should().BeSameAs(exception);
+        record.Level.ShouldBe(expectedLevel);
+        record.Exception.ShouldBeSameAs(exception);
     }
 
     [Theory(DisplayName = "AddObservability retains cancellation details and correlation through batch export")]
@@ -76,19 +76,19 @@ public sealed class ClientCancellationLoggingTests
 
         var record = ExportLog(exception, true, true, LogLevel.Error);
 
-        record.Level.Should().Be(LogLevel.Information);
-        record.Exception.Should().BeSameAs(exception);
-        record.Exception!.StackTrace.Should().NotBeNullOrEmpty();
-        record.Message.Should().Be("Invocation of GetHeroesQuery failed!");
-        record.Category.Should().Be("GetHeroesQuery");
-        record.EventId.Should().Be(InvocationFailedEvent);
-        record.Attributes["Message"].Should().Be("GetHeroesQuery");
-        record.Scopes["RequestId"].Should().Be("request-42");
-        record.TraceId.Should().Be(activity.TraceId);
-        record.SpanId.Should().Be(activity.SpanId);
+        record.Level.ShouldBe(LogLevel.Information);
+        record.Exception.ShouldBeSameAs(exception);
+        record.Exception!.StackTrace.ShouldNotBeNullOrEmpty();
+        record.Message.ShouldBe("Invocation of GetHeroesQuery failed!");
+        record.Category.ShouldBe("GetHeroesQuery");
+        record.EventId.ShouldBe(InvocationFailedEvent);
+        record.Attributes["Message"].ShouldBe("GetHeroesQuery");
+        record.Scopes["RequestId"].ShouldBe("request-42");
+        record.TraceId.ShouldBe(activity.TraceId);
+        record.SpanId.ShouldBe(activity.SpanId);
         if (aggregate)
         {
-            record.Exception.Should().BeOfType<AggregateException>().Subject.InnerExceptions.Should().ContainSingle().Which.Should().BeSameAs(cancellation);
+            record.Exception.ShouldBeOfType<AggregateException>().InnerExceptions.ShouldHaveSingleItem().ShouldBeSameAs(cancellation);
         }
     }
 
@@ -126,8 +126,8 @@ public sealed class ClientCancellationLoggingTests
             accessor.HttpContext = null;
         }
 
-        batchProcessor.ForceFlush().Should().BeTrue();
-        return exporter.Records.Should().ContainSingle().Subject;
+        batchProcessor.ForceFlush().ShouldBeTrue();
+        return exporter.Records.ShouldHaveSingleItem();
     }
 
     private static Exception? CreateException(ExceptionKind kind)

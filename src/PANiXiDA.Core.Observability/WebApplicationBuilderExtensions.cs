@@ -49,6 +49,7 @@ public static class WebApplicationBuilderExtensions
             .WithTracing(tracingBuilder =>
             {
                 tracingBuilder
+                    .AddSource("Wolverine", "Quartz")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddNpgsql();
@@ -56,6 +57,7 @@ public static class WebApplicationBuilderExtensions
             .WithMetrics(metricsBuilder =>
             {
                 metricsBuilder
+                    .AddMeter("Wolverine*", "Quartz")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()

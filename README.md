@@ -18,6 +18,7 @@ The package configures OpenTelemetry for ASP.NET Core hosts with:
 
 - resource metadata based on OpenTelemetry resource defaults, application assembly version, and machine name;
 - ASP.NET Core, HTTP client, runtime, and Npgsql instrumentation;
+- Wolverine metrics and traces when the application uses Wolverine;
 - OpenTelemetry logging with formatted messages, scopes, and parsed state values;
 - OTLP exporters for logs, metrics, and traces;
 - configuration-driven OTLP exporter options through standard OpenTelemetry keys.
@@ -104,6 +105,26 @@ The package does not define a custom `OpenTelemetry:ServiceName` key. If no Open
 ### OTLP Exporter
 
 The package does not hard-code OTLP endpoint, protocol, headers, or timeout values. Configure them through standard OpenTelemetry configuration keys.
+
+### Wolverine
+
+`AddObservability()` subscribes to the `Wolverine` activity source and the
+`Wolverine*` meters. Wolverine names its meters `Wolverine:{ApplicationName}`, so
+the wildcard also collects metrics from application-specific meter names. These
+signals use the same configured OTLP exporters as the rest of the application.
+No Wolverine package dependency or additional registration is required in this
+observability package; applications without Wolverine emit no Wolverine signals.
+
+Wolverine logs already use the standard `ILogger` pipeline and are exported by
+the existing OpenTelemetry logging provider. Normal application logging filters
+still apply, including message-type categories used by Wolverine handlers.
+Enabling metrics and traces does not change logging levels.
+
+The built-in `wolverine-dead-letter-queue` metric counts messages moved to a dead
+letter queue; it does not measure the number of messages currently stored there.
+Exporting it does not add a DLQ backlog gauge or configure alert thresholds.
+
+See [Wolverine instrumentation and metrics](https://wolverinefx.net/guide/logging).
 
 ### Production Minimum
 
@@ -220,6 +241,7 @@ Behavior:
 - validates `builder`;
 - configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
+- subscribes to Wolverine metrics and traces without requiring a Wolverine dependency;
 - adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
 - returns the same `WebApplicationBuilder` instance for chaining.
 

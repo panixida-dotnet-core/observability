@@ -47,9 +47,9 @@ public sealed class BackgroundTelemetryTests
 
         meter.CreateCounter<long>(metricName).Add(3);
         unrelatedMeter.CreateCounter<long>(metricName).Add(7);
-        reader.Collect().Should().BeTrue();
+        reader.Collect().ShouldBeTrue();
 
-        measurements.Should().ContainSingle().Which.Should().Be((meterName, 3L));
+        measurements.ShouldHaveSingleItem().ShouldBe((meterName, 3L));
     }
 
     [Theory(DisplayName = "AddObservability collects Wolverine and Quartz spans with their parent context")]
@@ -74,15 +74,15 @@ public sealed class BackgroundTelemetryTests
 
         using (var activity = source.StartActivity(operationName, kind, parent))
         {
-            activity.Should().NotBeNull();
+            activity.ShouldNotBeNull();
         }
 
-        var exportedActivity = activities.Should().ContainSingle().Subject;
-        exportedActivity.Source.Name.Should().Be(sourceName);
-        exportedActivity.OperationName.Should().Be(operationName);
-        exportedActivity.Kind.Should().Be(kind);
-        exportedActivity.TraceId.Should().Be(parent.TraceId);
-        exportedActivity.ParentSpanId.Should().Be(parent.SpanId);
+        var exportedActivity = activities.ShouldHaveSingleItem();
+        exportedActivity.Source.Name.ShouldBe(sourceName);
+        exportedActivity.OperationName.ShouldBe(operationName);
+        exportedActivity.Kind.ShouldBe(kind);
+        exportedActivity.TraceId.ShouldBe(parent.TraceId);
+        exportedActivity.ParentSpanId.ShouldBe(parent.SpanId);
     }
 
     [Fact(DisplayName = "AddObservability already collects Wolverine logs and respects logging filters")]
@@ -103,7 +103,7 @@ public sealed class BackgroundTelemetryTests
         logger.LogInformation("Message processed");
         logger.LogWarning("Message moved to dead letter queue");
 
-        records.Should().ContainSingle().Which.Should().Be(
+        records.ShouldHaveSingleItem().ShouldBe(
             ("Wolverine.Runtime", LogLevel.Warning, "Message moved to dead letter queue"));
     }
 

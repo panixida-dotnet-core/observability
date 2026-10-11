@@ -21,9 +21,7 @@ public sealed class WebApplicationBuilderExtensionsTests
     [Fact(DisplayName = "AddObservability throws when builder is null")]
     public void AddObservability_ShouldThrow_WhenBuilderIsNull()
     {
-        var act = () => WebApplicationBuilderExtensions.AddObservability(null!);
-
-        var exception = Should.Throw<ArgumentNullException>(act);
+        var exception = Should.Throw<ArgumentNullException>(() => WebApplicationBuilderExtensions.AddObservability(null!));
         exception.ParamName.ShouldBe("builder");
     }
 

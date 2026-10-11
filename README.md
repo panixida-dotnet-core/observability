@@ -135,17 +135,25 @@ package. Quartz 3.x instrumentation is not covered by these subscriptions.
 
 Quartz logs already use `ILogger` and follow the configured logging filters.
 
-Quartz `Histogram<double>` instruments expressed in seconds use explicit boundaries from
-1 millisecond through 1 hour, including subsecond buckets for short jobs and store operations.
-This prevents the default 0-to-5-second bucket from making a millisecond job appear to have
-a multi-second p95. Histogram count, sum, tags, and units are preserved. Other meters and
-Quartz instruments with different units are unaffected. When rolling out this change,
-calculate quantiles only from instances with the new bucket layout; do not mix old and new
-histogram boundaries in the same aggregation. Historical measurements are not rewritten.
 Exporting the built-in signals does not add last-success tracking, job deadlines,
 or alert rules.
 
 See [Quartz observability](https://www.quartz-scheduler.net/documentation/quartz-4.x/packages/opentelemetry-integration).
+
+### Duration Histograms
+
+For collected histograms with unit `s` or `ms`, `AddObservability()` supplies default
+boundaries from 1 millisecond through 1 hour, plus zero and the overflow bucket.
+The same time intervals are expressed in the instrument's unit, independently of
+its meter or metric name. This improves percentile resolution for short operations.
+
+Explicit `InstrumentAdvice.HistogramBucketBoundaries` are preserved, including an
+empty list requesting only count and sum. The fallback applies only when no boundaries
+were advised. Counts, sums, tags and units are preserved; other units and non-histogram
+instruments are unchanged. This does not subscribe to additional meters.
+
+When rolling out changed boundaries, calculate quantiles only from instances using
+the same bucket layout. Historical measurements are not rewritten.
 
 ### Production Minimum
 

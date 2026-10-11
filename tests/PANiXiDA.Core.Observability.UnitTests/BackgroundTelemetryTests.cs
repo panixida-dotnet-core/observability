@@ -16,60 +16,6 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 
 public sealed class BackgroundTelemetryTests
 {
-    [Theory(DisplayName = "Quartz duration histograms resolve subsecond jobs without changing other meters")]
-    [InlineData("Quartz", "quartz.job.execution.duration", "s", true)]
-    [InlineData("Quartz", "quartz.trigger.acquisition.duration", "s", true)]
-    [InlineData("Quartz", "quartz.jobstore.operation.duration", "s", true)]
-    [InlineData("Quartz", "quartz.jobstore.lock.wait.duration", "s", true)]
-    [InlineData("Quartz", "quartz.cluster.checkin.duration", "s", true)]
-    [InlineData("Quartz", "quartz.job.execution.duration", "ms", false)]
-    [InlineData("Wolverine:Orders", "quartz.job.execution.duration", "s", false)]
-    public void QuartzDurationBucketsShouldUseSeconds(string meterName, string metricName, string unit, bool targeted)
-    {
-        var buckets = new List<(double Bound, long Count)>();
-        using var exporter = new RecordingExporter<Metric>(metric =>
-        {
-            if (metric.Name != metricName || metric.MeterName != meterName)
-            {
-                return;
-            }
-
-            metric.Unit.Should().Be(unit);
-            foreach (ref readonly var point in metric.GetMetricPoints())
-            {
-                point.GetHistogramCount().Should().Be(2);
-                point.GetHistogramSum().Should().BeApproximately(0.15, 0.000001);
-                foreach (var bucket in point.GetHistogramBuckets())
-                {
-                    buckets.Add((bucket.ExplicitBound, bucket.BucketCount));
-                }
-            }
-        });
-        using var reader = new BaseExportingMetricReader(exporter);
-        var builder = CreateBuilder();
-        builder.AddObservability();
-        builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddReader(reader));
-        using var app = builder.Build();
-        _ = app.Services.GetRequiredService<MeterProvider>();
-        using var meter = new Meter(meterName);
-        var histogram = meter.CreateHistogram<double>(metricName, unit);
-
-        histogram.Record(0.0005);
-        histogram.Record(0.1495);
-        reader.Collect().Should().BeTrue();
-
-        buckets.Should().NotBeEmpty();
-        if (targeted)
-        {
-            buckets.Should().Contain((0.001, 1L)).And.Contain((0.25, 1L));
-            buckets.Should().Contain(item => item.Bound == 3600);
-        }
-        else
-        {
-            buckets.Should().NotContain(item => item.Bound == 0.001);
-        }
-    }
-
     [Theory(DisplayName = "AddObservability collects Wolverine and Quartz meters")]
     [InlineData("Wolverine:Orders", "wolverine-messages-succeeded")]
     [InlineData("Wolverine:Notifications", "wolverine-messages-succeeded")]

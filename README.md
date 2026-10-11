@@ -18,7 +18,7 @@ The package configures OpenTelemetry for ASP.NET Core hosts with:
 
 - resource metadata based on OpenTelemetry resource defaults, application assembly version, and machine name;
 - ASP.NET Core, HTTP client, runtime, and Npgsql instrumentation;
-- Wolverine metrics and traces when the application uses Wolverine;
+- Wolverine and Quartz 4.x metrics and traces when the application uses these libraries;
 - OpenTelemetry logging with formatted messages, scopes, and parsed state values;
 - OTLP exporters for logs, metrics, and traces;
 - configuration-driven OTLP exporter options through standard OpenTelemetry keys.
@@ -125,6 +125,19 @@ letter queue; it does not measure the number of messages currently stored there.
 Exporting it does not add a DLQ backlog gauge or configure alert thresholds.
 
 See [Wolverine instrumentation and metrics](https://wolverinefx.net/guide/logging).
+
+### Quartz
+
+`AddObservability()` subscribes to the `Quartz` activity source and meter used by
+Quartz 4.x. Job and scheduler metrics and traces use the existing OTLP exporters;
+this package does not require a Quartz dependency or a separate instrumentation
+package. Quartz 3.x instrumentation is not covered by these subscriptions.
+
+Quartz logs already use `ILogger` and follow the configured logging filters.
+Exporting the built-in signals does not add last-success tracking, job deadlines,
+or alert rules.
+
+See [Quartz observability](https://www.quartz-scheduler.net/documentation/quartz-4.x/packages/opentelemetry-integration).
 
 ### Production Minimum
 
@@ -241,7 +254,7 @@ Behavior:
 - validates `builder`;
 - configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
-- subscribes to Wolverine metrics and traces without requiring a Wolverine dependency;
+- subscribes to Wolverine and Quartz 4.x metrics and traces without requiring dependencies on these libraries;
 - adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
 - returns the same `WebApplicationBuilder` instance for chaining.
 

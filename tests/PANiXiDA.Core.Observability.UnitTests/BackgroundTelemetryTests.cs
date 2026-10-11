@@ -14,17 +14,18 @@ using OpenTelemetry.Trace;
 
 namespace PANiXiDA.Core.Observability.UnitTests;
 
-public sealed class WolverineTelemetryTests
+public sealed class BackgroundTelemetryTests
 {
-    [Theory(DisplayName = "AddObservability collects application-specific Wolverine meters")]
-    [InlineData("Wolverine:Orders")]
-    [InlineData("Wolverine:Notifications")]
-    public void AddObservability_ShouldCollectWolverineMetrics(string meterName)
+    [Theory(DisplayName = "AddObservability collects Wolverine and Quartz meters")]
+    [InlineData("Wolverine:Orders", "wolverine-messages-succeeded")]
+    [InlineData("Wolverine:Notifications", "wolverine-messages-succeeded")]
+    [InlineData("Quartz", "quartz.trigger.misfire")]
+    public void AddObservability_ShouldCollectBackgroundMetrics(string meterName, string metricName)
     {
         var measurements = new ConcurrentBag<(string Meter, long Value)>();
         using var exporter = new RecordingExporter<Metric>(metric =>
         {
-            if (metric.Name != "wolverine-messages-succeeded")
+            if (metric.Name != metricName)
             {
                 return;
             }
@@ -44,15 +45,17 @@ public sealed class WolverineTelemetryTests
         using var meter = new Meter(meterName);
         using var unrelatedMeter = new Meter("Unrelated.Library");
 
-        meter.CreateCounter<long>("wolverine-messages-succeeded").Add(3);
-        unrelatedMeter.CreateCounter<long>("wolverine-messages-succeeded").Add(7);
+        meter.CreateCounter<long>(metricName).Add(3);
+        unrelatedMeter.CreateCounter<long>(metricName).Add(7);
         reader.Collect().Should().BeTrue();
 
         measurements.Should().ContainSingle().Which.Should().Be((meterName, 3L));
     }
 
-    [Fact(DisplayName = "AddObservability collects Wolverine spans with their parent context")]
-    public void AddObservability_ShouldCollectWolverineTraces()
+    [Theory(DisplayName = "AddObservability collects Wolverine and Quartz spans with their parent context")]
+    [InlineData("Wolverine", "message processing", ActivityKind.Consumer)]
+    [InlineData("Quartz", "Quartz.Job.Execute", ActivityKind.Internal)]
+    public void AddObservability_ShouldCollectBackgroundTraces(string sourceName, string operationName, ActivityKind kind)
     {
         var activities = new ConcurrentBag<Activity>();
         using var exporter = new RecordingExporter<Activity>(activities.Add);
@@ -63,19 +66,21 @@ public sealed class WolverineTelemetryTests
 
         using var app = builder.Build();
         _ = app.Services.GetRequiredService<TracerProvider>();
-        using var source = new ActivitySource("Wolverine");
+        using var source = new ActivitySource(sourceName);
         var parent = new ActivityContext(
             ActivityTraceId.CreateRandom(),
             ActivitySpanId.CreateRandom(),
             ActivityTraceFlags.Recorded);
 
-        using (var activity = source.StartActivity("message processing", ActivityKind.Consumer, parent))
+        using (var activity = source.StartActivity(operationName, kind, parent))
         {
             activity.Should().NotBeNull();
         }
 
         var exportedActivity = activities.Should().ContainSingle().Subject;
-        exportedActivity.Source.Name.Should().Be("Wolverine");
+        exportedActivity.Source.Name.Should().Be(sourceName);
+        exportedActivity.OperationName.Should().Be(operationName);
+        exportedActivity.Kind.Should().Be(kind);
         exportedActivity.TraceId.Should().Be(parent.TraceId);
         exportedActivity.ParentSpanId.Should().Be(parent.SpanId);
     }
@@ -106,7 +111,7 @@ public sealed class WolverineTelemetryTests
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
-            ApplicationName = typeof(WolverineTelemetryTests).Assembly.FullName,
+            ApplicationName = typeof(BackgroundTelemetryTests).Assembly.FullName,
             EnvironmentName = "Testing"
         });
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>

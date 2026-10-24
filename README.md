@@ -33,7 +33,7 @@ The package configures OpenTelemetry for ASP.NET Core hosts with:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="PANiXiDA.Core.Observability" Version="1.0.0" />
+  <PackageReference Include="PANiXiDA.Core.Observability" Version="1.1.0" />
 </ItemGroup>
 ```
 
@@ -328,3 +328,65 @@ Quality Gate succeeds.
 This project is licensed under the Apache-2.0 license.
 
 See the [LICENSE](LICENSE) file for details.
+
+## Blazor WebAssembly
+
+Install `PANiXiDA.Core.Observability.WebAssembly` 1.1.0 in the client project.
+The existing `PANiXiDA.Core.Observability` package remains the ASP.NET Core server
+adapter and keeps its existing API. The browser package does not reference
+Npgsql or the ASP.NET Core server shared framework.
+
+```csharp
+using PANiXiDA.Core.Observability.WebAssembly;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.AddObservability();
+// Register the application and HTTP clients as usual.
+var host = builder.Build();
+host.UseObservability();
+await host.RunAsync();
+```
+
+`AddObservability` configures OpenTelemetry logging, all published ActivitySource
+and Meter sources, and protobuf OTLP export. It subscribes to existing signals;
+it does not invent business metrics or capture arbitrary JavaScript console
+messages. Missing sources produce no data. `UseObservability` initializes the
+providers because WebAssembly does not run the server's hosted-service lifecycle.
+The package enables `MetricsSupport` and `EventSourceSupport` through its
+transitive build properties; it does not enable CPU profilers or EventPipe dumps.
+
+Set the public `OTEL_SERVICE_NAME` client configuration to identify the browser
+application. A random instance ID is shared by all three signals for the lifetime
+of the client. This ID is not a user or device identifier.
+
+HTTP clients registered through `IHttpClientFactory` automatically receive spans,
+duration measurements, and W3C trace-context propagation to the application's
+own origin. Cross-origin requests do not receive trace headers from this adapter.
+Directly constructed `new HttpClient()` instances do not receive this handler.
+Request query strings, bodies, and authentication headers are not attached to
+HTTP spans. OTLP delivery bypasses this handler to avoid instrumenting itself.
+
+The browser posts to the same-origin routes `telemetry/v1/logs`,
+`telemetry/v1/metrics`, and `telemetry/v1/traces`. The application must expose these
+routes through its BFF and forward them to an OTLP HTTP receiver. Do not put
+collector credentials in client configuration. Use separate client service names
+and treat incoming browser resource attributes as untrusted.
+
+The regular OTLP exporter supplies the standard protobuf serialization. A bounded
+transport copies each serialized request before the SDK reuses its buffer, then
+sends it asynchronously. This avoids the exporter's synchronous network wait in
+single-threaded WASM. Export success means accepted into the local delivery queue,
+not acknowledgement from the collector. Delivery is best effort: at most 64 queued
+requests of up to 64 KiB each, a five-second network timeout and a 30-second queue
+age limit. Failed requests are dropped; closing a tab can lose pending records.
+SDK trace and log queues are capped at 256 records each, with batches of 64.
+
+### Browser validation
+
+The native test projects cover server compatibility, protobuf export for all
+signals, bounded delivery, buffer ownership and same-origin propagation. The
+`browser` CI job also runs `tests/browser-smoke.cjs` in Chromium against
+`tests/BrowserSmoke.Host`. It verifies real single-threaded WASM startup, HTTP
+traceparent propagation, delivery of all three OTLP signals, and a responsive UI
+while the receiving endpoint returns 503. Run the smoke host on localhost:5189,
+then run the script with Playwright available to Node.js.

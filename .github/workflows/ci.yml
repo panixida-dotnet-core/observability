@@ -10,6 +10,35 @@ permissions:
     packages: write
 
 jobs:
+    browser:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v7
+            with:
+              fetch-depth: 0
+          - uses: actions/setup-dotnet@v5
+            with:
+              global-json-file: global.json
+          - uses: actions/setup-node@v6
+            with:
+              node-version: 22
+          - name: Install browser test runtime
+            run: |
+              npm install --prefix "$RUNNER_TEMP/browser-smoke" --no-save playwright@1.62.1
+              "$RUNNER_TEMP/browser-smoke/node_modules/.bin/playwright" install --with-deps chromium
+          - name: Verify single-threaded WebAssembly export and trace propagation
+            env:
+              NODE_PATH: ${{ runner.temp }}/browser-smoke/node_modules
+            run: |
+              dotnet run --project tests/BrowserSmoke.Host -c Release --urls http://127.0.0.1:5189 >"$RUNNER_TEMP/browser-smoke-host.log" 2>&1 &
+              smoke_pid=$!
+              trap 'kill "$smoke_pid" || true' EXIT
+              for attempt in $(seq 1 120); do
+                if curl -fsS http://127.0.0.1:5189/received >/dev/null; then break; fi
+                if ! kill -0 "$smoke_pid" 2>/dev/null; then cat "$RUNNER_TEMP/browser-smoke-host.log"; exit 1; fi
+                sleep 1
+              done
+              node tests/browser-smoke.cjs
     format:
         uses: PANiXiDA-Infrastructure/ci-cd/.github/workflows/dotnet-format.yml@main
         secrets:
@@ -35,6 +64,7 @@ jobs:
     publish:
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       needs: 
+        - browser
         - format
         - tests
         - sonar

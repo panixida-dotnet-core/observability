@@ -16,9 +16,13 @@
     <File Path="version.json" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/PANiXiDA.Core.Observability.WebAssembly/PANiXiDA.Core.Observability.WebAssembly.csproj" />
     <Project Path="src/PANiXiDA.Core.Observability/PANiXiDA.Core.Observability.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BrowserSmoke.Client/BrowserSmoke.Client.csproj" />
+    <Project Path="tests/BrowserSmoke.Host/BrowserSmoke.Host.csproj" />
+    <Project Path="tests/PANiXiDA.Core.Observability.WebAssembly.UnitTests/PANiXiDA.Core.Observability.WebAssembly.UnitTests.csproj" />
     <Project Path="tests/PANiXiDA.Core.Observability.UnitTests/PANiXiDA.Core.Observability.UnitTests.csproj" />
   </Folder>
 </Solution>

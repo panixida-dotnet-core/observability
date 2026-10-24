@@ -6,6 +6,37 @@ public sealed class BrowserOtlpTransportTests
 {
     private static readonly Uri Endpoint = new("https://admin.example.test/telemetry/");
 
+    [Theory(DisplayName = "Export delivery should continue after a network failure without a recursive log")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Export_Should_ContinueDelivery_When_PreviousRequestFailed(bool canceled)
+    {
+        int calls = 0;
+        var delivered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var handler = new CaptureHandler((_, _) =>
+        {
+            if (Interlocked.Increment(ref calls) == 1)
+            {
+                return Task.FromException<HttpResponseMessage>(canceled ? new OperationCanceledException() : new HttpRequestException("synthetic failure"));
+            }
+
+            delivered.TrySetResult();
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+        });
+        using var transport = new BrowserOtlpTransport(Endpoint, handler);
+        using var client = new HttpClient(transport, disposeHandler: false);
+        using var first = await client.PostAsync(new Uri(Endpoint, "v1/logs"), new ByteArrayContent([1]), TestContext.Current.CancellationToken);
+        using var second = await client.PostAsync(new Uri(Endpoint, "v1/logs"), new ByteArrayContent([2]), TestContext.Current.CancellationToken);
+
+        await delivered.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        first.StatusCode.ShouldBe(HttpStatusCode.OK);
+        second.StatusCode.ShouldBe(HttpStatusCode.OK);
+        calls.ShouldBe(2);
+        transport.Dispose();
+        await transport.Completion.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
+
     [Fact(DisplayName = "Export should return before the network completes and copy the SDK buffer")]
     public async Task Export_Should_ReturnBeforeNetworkCompletes_When_TransportIsSlow()
     {

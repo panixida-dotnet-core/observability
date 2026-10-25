@@ -1,9 +1,10 @@
 using System.Reflection;
 
+using Microsoft.AspNetCore.Components.Infrastructure;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Http;
 
+using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -33,19 +34,16 @@ public static class WebAssemblyHostBuilderExtensions
     public static WebAssemblyHost UseObservability(this WebAssemblyHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
-        _ = host.Services.GetRequiredService<TracerProvider>();
-        _ = host.Services.GetRequiredService<MeterProvider>();
-        _ = host.Services.GetRequiredService<BrowserOtlpTransport>();
+        host.Services.GetRequiredService<ITelemetryHostInitializer>().Initialize();
         return host;
     }
 
     internal static void AddBrowserObservability(this IServiceCollection services, Uri endpoint, string serviceName)
     {
-        var transport = new Lazy<BrowserOtlpTransport>(() => new BrowserOtlpTransport(endpoint));
         var instanceId = Guid.NewGuid().ToString("N");
-        services.AddSingleton(_ => transport.Value);
         services.AddHttpClient();
-        services.AddSingleton<IHttpMessageHandlerBuilderFilter>(new BrowserHttpTelemetryFilter(endpoint));
+        ComponentsMetricsServiceCollectionExtensions.AddComponentsMetrics(services);
+        ComponentsMetricsServiceCollectionExtensions.AddComponentsTracing(services);
         services.Configure<BatchExportActivityProcessorOptions>(processor =>
         {
             processor.MaxQueueSize = 256;
@@ -56,16 +54,16 @@ public static class WebAssemblyHostBuilderExtensions
             .ConfigureResource(resource => resource.AddService(serviceName, serviceInstanceId: instanceId,
                 serviceVersion: Assembly.GetEntryAssembly()?.GetName().Version?.ToString()))
             .WithTracing(tracing => tracing.AddSource("*").AddHttpClientInstrumentation()
-                .AddOtlpExporter(options => ConfigureExporter(options, transport, endpoint, "traces")))
+                .AddOtlpExporter(options => ConfigureExporter(options, endpoint, "traces")))
             .WithMetrics(metrics => metrics.AddMeter("*")
                 .AddOtlpExporter((options, reader) =>
                 {
-                    ConfigureExporter(options, transport, endpoint, "metrics");
+                    ConfigureExporter(options, endpoint, "metrics");
                     reader.PeriodicExportingMetricReaderOptions.ExportIntervalMilliseconds = 15000;
                 }))
             .WithLogging(logging => logging.AddOtlpExporter((options, processor) =>
             {
-                ConfigureExporter(options, transport, endpoint, "logs");
+                ConfigureExporter(options, endpoint, "logs");
                 processor.BatchExportProcessorOptions.MaxQueueSize = 256;
                 processor.BatchExportProcessorOptions.MaxExportBatchSize = 64;
                 processor.BatchExportProcessorOptions.ScheduledDelayMilliseconds = 5000;
@@ -77,11 +75,10 @@ public static class WebAssemblyHostBuilderExtensions
             });
     }
 
-    private static void ConfigureExporter(OtlpExporterOptions options, Lazy<BrowserOtlpTransport> transport, Uri endpoint, string signal)
+    private static void ConfigureExporter(OtlpExporterOptions options, Uri endpoint, string signal)
     {
         options.Protocol = OtlpExportProtocol.HttpProtobuf;
         options.Endpoint = new Uri(endpoint, "v1/" + signal);
         options.MaxRequestSizeBytes = 1024 * 1024;
-        options.HttpClientFactory = () => new HttpClient(transport.Value, disposeHandler: false);
     }
 }

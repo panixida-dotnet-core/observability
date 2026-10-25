@@ -1,6 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <MetricsSupport>true</MetricsSupport>
-    <EventSourceSupport>true</EventSourceSupport>
-  </PropertyGroup>
-</Project>

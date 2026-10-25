@@ -352,19 +352,29 @@ and Meter sources, and protobuf OTLP export. It subscribes to existing signals;
 it does not invent business metrics or capture arbitrary JavaScript console
 messages. Missing sources produce no data. `UseObservability` initializes the
 providers because WebAssembly does not run the server's hosted-service lifecycle.
-The package enables `MetricsSupport` and `EventSourceSupport` through its
-transitive build properties; it does not enable CPU profilers or EventPipe dumps.
+Enable the runtime features explicitly in the consuming Blazor client `.csproj`:
+
+```xml
+<PropertyGroup>
+  <MetricsSupport>true</MetricsSupport>
+  <EventSourceSupport>true</EventSourceSupport>
+  <HttpActivityPropagationSupport>true</HttpActivityPropagationSupport>
+</PropertyGroup>
+```
+
+`MetricsSupport` enables the metrics APIs, `EventSourceSupport` preserves
+EventSource diagnostics, and `HttpActivityPropagationSupport` enables the runtime's
+HTTP activities and W3C propagation. These settings do not enable CPU profilers
+or EventPipe dumps. The package does not change consuming projects' build properties.
 
 Set the public `OTEL_SERVICE_NAME` client configuration to identify the browser
 application. A random instance ID is shared by all three signals for the lifetime
 of the client. This ID is not a user or device identifier.
 
-HTTP clients registered through `IHttpClientFactory` automatically receive spans,
-duration measurements, and W3C trace-context propagation to the application's
-own origin. Cross-origin requests do not receive trace headers from this adapter.
-Directly constructed `new HttpClient()` instances do not receive this handler.
-Request query strings, bodies, and authentication headers are not attached to
-HTTP spans. OTLP delivery bypasses this handler to avoid instrumenting itself.
+HTTP spans, duration measurements, and W3C context propagation use the standard
+.NET HTTP instrumentation, including directly constructed `HttpClient` instances.
+Propagation follows the runtime defaults; external APIs must permit tracing headers
+in their CORS policy. The OTLP SDK suppresses tracing of its own export requests.
 
 The browser posts to the same-origin routes `telemetry/v1/logs`,
 `telemetry/v1/metrics`, and `telemetry/v1/traces`. The application must expose these
@@ -372,16 +382,13 @@ routes through its BFF and forward them to an OTLP HTTP receiver. Do not put
 collector credentials in client configuration. Use separate client service names
 and treat incoming browser resource attributes as untrusted.
 
-The regular OTLP exporter supplies the standard protobuf serialization. A bounded
-transport copies each serialized request before the SDK reuses its buffer, then
-sends it asynchronously. This avoids the exporter's synchronous network wait in
-single-threaded WASM. Export success means accepted into the local delivery queue,
-not acknowledgement from the collector. Delivery is best effort: at most 64 queued
-requests of up to 64 KiB each, a five-second network timeout and a 30-second queue
-age limit. Failed requests are dropped; closing a tab can lose pending records.
-SDK trace and log queues are capped at 256 records each, with batches of 64.
+OpenTelemetry 1.19.1 supplies protobuf serialization and browser-compatible OTLP
+delivery without a custom transport or HttpClientFactory override. SDK trace and
+log queues are capped at 256 records each, with batches of 64. Delivery is best
+effort; a failed receiver or closing the tab can lose records. The BFF may impose
+additional request limits, including a 64 KiB payload limit in Tactical Heroes admin.
 
 ### Tests
 
 The native test projects cover server compatibility, protobuf export for all
-signals, bounded delivery, buffer ownership and same-origin propagation.
+signals, HTTP trace-context propagation, and public argument validation.

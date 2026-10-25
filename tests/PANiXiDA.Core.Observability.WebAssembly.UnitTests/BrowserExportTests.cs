@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -15,6 +16,18 @@ namespace PANiXiDA.Core.Observability.WebAssembly.UnitTests;
 
 public sealed class BrowserExportTests
 {
+    [Fact(DisplayName = "AddObservability should reject null when builder is missing")]
+    public void AddObservability_Should_RejectNull_When_BuilderIsMissing()
+    {
+        Should.Throw<ArgumentNullException>(() => WebAssemblyHostBuilderExtensions.AddObservability(null!));
+    }
+
+    [Fact(DisplayName = "UseObservability should reject null when host is missing")]
+    public void UseObservability_Should_RejectNull_When_HostIsMissing()
+    {
+        Should.Throw<ArgumentNullException>(() => WebAssemblyHostBuilderExtensions.UseObservability(null!));
+    }
+
     [Fact(DisplayName = "Browser observability should deliver protobuf for all signals asynchronously")]
     public async Task BrowserObservability_Should_DeliverAllSignals_When_ProvidersAreFlushed()
     {
@@ -25,6 +38,7 @@ public sealed class BrowserExportTests
         receiver.Urls.Add("http://127.0.0.1:0");
         var received = new ConcurrentDictionary<string, byte[]>();
         var allSignals = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        receiver.MapGet("/probe", (HttpContext context) => Results.Text(context.Request.Headers.TraceParent.ToString()));
         receiver.MapPost("/telemetry/v1/{signal}", async (string signal, HttpContext context) =>
         {
             context.Request.ContentType.ShouldBe("application/x-protobuf");
@@ -46,12 +60,18 @@ public sealed class BrowserExportTests
         var traces = application.Services.GetRequiredService<TracerProvider>();
         var metrics = application.Services.GetRequiredService<MeterProvider>();
         _ = application.Services.GetServices<ILoggerProvider>().OfType<OpenTelemetryLoggerProvider>().Single();
-        _ = application.Services.GetRequiredService<BrowserOtlpTransport>();
+        application.Services.GetRequiredService<ITelemetryHostInitializer>().Initialize();
         using var source = new ActivitySource("browser-export-probe");
         using var meter = new Meter("browser-export-probe");
 
         using (source.StartActivity("client-action"))
         {
+            var parent = Activity.Current.ShouldNotBeNull();
+            using var client = application.Services.GetRequiredService<IHttpClientFactory>().CreateClient("probe");
+            var traceparent = await client.GetStringAsync(new Uri(receiver.Urls.Single() + "/probe"), cancellationToken);
+            ActivityContext.TryParse(traceparent, null, out var context).ShouldBeTrue();
+            context.TraceId.ShouldBe(parent.TraceId);
+            context.SpanId.ShouldNotBe(parent.SpanId);
             application.Logger.LogWarning("Browser export probe");
             meter.CreateCounter<long>("browser.actions").Add(1);
         }

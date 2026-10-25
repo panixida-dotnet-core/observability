@@ -2,7 +2,7 @@
   <PropertyGroup>
     <IsPackable>true</IsPackable>
     <PackageId>PANiXiDA.Core.Observability.WebAssembly</PackageId>
-    <Description>Browser-compatible OpenTelemetry configuration and asynchronous OTLP delivery for Blazor WebAssembly.</Description>
+    <Description>OpenTelemetry configuration for Blazor WebAssembly with standard HTTP instrumentation and OTLP export.</Description>
     <PackageTags>Observability;OpenTelemetry;Blazor;WebAssembly;OTLP</PackageTags>
     <RepositoryUrl>https://github.com/panixida-dotnet-core/observability</RepositoryUrl>
     <PackageProjectUrl>https://github.com/panixida-dotnet-core/observability</PackageProjectUrl>
@@ -16,7 +16,6 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="buildTransitive/PANiXiDA.Core.Observability.WebAssembly.props" Pack="true" PackagePath="buildTransitive/" />
     <InternalsVisibleTo Include="PANiXiDA.Core.Observability.WebAssembly.UnitTests" />
   </ItemGroup>
 </Project>

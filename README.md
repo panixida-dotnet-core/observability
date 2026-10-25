@@ -1,10 +1,10 @@
 # PANiXiDA.Core.Observability
 
-`PANiXiDA.Core.Observability` is a .NET package that adds PANiXiDA host observability conventions on top of OpenTelemetry.
+`PANiXiDA.Core.Observability` is an MSBuild SDK package that adds PANiXiDA host observability conventions on top of OpenTelemetry.
 
-The same package supports ASP.NET Core servers and Blazor WebAssembly clients.
-Each host calls `builder.AddObservability()` using the extension for its builder;
-the server and browser configurations stay separate inside one assembly.
+The same package and assembly support ASP.NET Core servers and Blazor WebAssembly
+clients. Each host calls `builder.AddObservability()` using the extension for its
+builder. The SDK selects server or browser NuGet dependencies before restore.
 
 ## Status
 
@@ -34,11 +34,40 @@ The package configures OpenTelemetry for ASP.NET Core hosts with:
 
 ## Installation
 
-```xml
-<ItemGroup>
-  <PackageReference Include="PANiXiDA.Core.Observability" Version="1.1.0" />
-</ItemGroup>
+Add the SDK version to the existing `global.json`:
+
+```json
+{
+  "msbuild-sdks": {
+    "PANiXiDA.Core.Observability": "2.0.0"
+  }
+}
 ```
+
+Add the same SDK reference to the server and client `.csproj` files while keeping
+their existing primary SDK and target framework:
+
+```xml
+<Sdk Name="PANiXiDA.Core.Observability" />
+```
+
+For example, an ASP.NET Core host starts with:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <Sdk Name="PANiXiDA.Core.Observability" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+</Project>
+```
+
+Version 2 changes the installation contract. Remove the old ordinary
+`PackageReference` and its central `PackageVersion` when migrating from 1.x.
+An ordinary package reference fails the build with migration guidance (`PANOBS002`).
+The C# registration call remains unchanged. MSBuild resolves the SDK through the
+configured NuGet feeds; it must be published or available locally before restore,
+formatting, build, or IDE project evaluation can succeed.
 
 ## Quick Start
 
@@ -334,7 +363,7 @@ See the [LICENSE](LICENSE) file for details.
 
 ## Blazor WebAssembly
 
-Install `PANiXiDA.Core.Observability` 1.1.0 in both the server and client projects.
+Reference the `PANiXiDA.Core.Observability` 2.0.0 SDK in both server and client projects.
 There is one source project, one assembly, and one NuGet package, all targeting
 `net10.0`. The server keeps its existing API and complete instrumentation,
 including `AddAspNetCoreInstrumentation()`. The client keeps `net10.0`, so the
@@ -373,32 +402,32 @@ or EventPipe dumps.
 
 ### Browser build compatibility
 
-The package includes both server and browser dependencies in the NuGet dependency
-graph. Server dependencies are restored for the client too, but browser registration
-does not call server instrumentation. The assembly supports trimming; Release
-publishing removes unreachable server code and reduces unused dependencies.
-Some small dependency assemblies can remain. Untrimmed development builds retain
-the server dependency assemblies.
+The SDK selects browser dependencies when `UsingMicrosoftNETSdkBlazorWebAssembly`
+is true, and server dependencies otherwise. The browser graph contains HTTP and
+OTLP telemetry plus Blazor WebAssembly, without Npgsql or server instrumentation.
+The server adapter adds ASP.NET Core, Runtime, and Npgsql instrumentation, without
+adding WebAssembly packages. An application can still have platform dependencies
+for other reasons: a Blazor Web App host references its WASM client for prerendering.
 
-`OpenTelemetry.Instrumentation.AspNetCore` carries a transitive
-`Microsoft.AspNetCore.App` framework reference, which has no `browser-wasm` runtime
-pack. The package's `buildTransitive` target therefore defaults the standard SDK
-property `DisableTransitiveFrameworkReferences` to `true` only for projects using
-`Microsoft.NET.Sdk.BlazorWebAssembly`. This disables **all transitive shared
-framework references in that browser project**, not just those introduced by this
-package. Direct framework references are unaffected. Server projects are unaffected.
-The existing repository `Directory.Build.targets` is packed under
-`buildTransitive/PANiXiDA.Core.Observability.targets`; no separate source file is
-maintained. Repository-only package metadata is guarded by the original file name
-and is not applied when NuGet imports the renamed file in a consuming project.
-An explicit value of this property in the consuming project is preserved; setting
-it to `false` makes the unsupported transitive server framework reference visible
-again and prevents WASM publishing.
+The existing repository `Directory.Build.props` and `Directory.Build.targets` are
+packed as `Sdk/Sdk.props` and `Sdk/Sdk.targets`. A generated `Sdk/Dependencies.props`
+gets dependency versions from `Directory.Packages.props` and host classifications
+from the library's package references. No separately maintained SDK source files
+or version table are required. Repository build and package metadata are guarded
+by the original file names and do not overwrite consumer settings.
 
-This setting controls framework resolution, not telemetry filtering. It does not
-make server APIs browser-compatible: client code must use the WebAssembly extension
-namespace shown above. No custom compiler, bundled third-party DLLs, or alternate
-target framework is required.
+Both ordinary and centrally managed package versions are supported, including
+`CentralPackageVersionOverrideEnabled=false`. Existing direct references and central
+versions are preserved; missing dependencies get SDK defaults. A resolved dependency
+below the SDK's supported stable minimum fails with `PANOBS001` instead of being
+silently downgraded. No override of `DisableTransitiveFrameworkReferences` is needed.
+
+There is one DLL with both implementations. Client code uses the WebAssembly
+extension namespace shown above; browser code must not call server-only APIs.
+Release trimming removes unreachable server code. The DLL still contains references
+to both platforms before trimming, so reflection over all of its method signatures
+requires the corresponding platform assemblies; the package does not promise that
+unrelated assembly scanning libraries can resolve unused platform-specific APIs.
 
 Configure the client in its public `wwwroot/appsettings.json`, for example:
 
@@ -447,4 +476,6 @@ to 1 MiB. Reverse-proxy and HTTP server limits still apply.
 
 The native test projects cover server compatibility, protobuf export for all
 signals at configurable endpoints, disabled export, HTTP trace-context propagation,
-configuration validation, and public argument validation.
+configuration validation, public argument validation, actual package contents,
+SDK dependency selection with and without central version management, consumer
+metadata preservation, and rejection of unsupported dependency versions.

@@ -387,6 +387,10 @@ property `DisableTransitiveFrameworkReferences` to `true` only for projects usin
 `Microsoft.NET.Sdk.BlazorWebAssembly`. This disables **all transitive shared
 framework references in that browser project**, not just those introduced by this
 package. Direct framework references are unaffected. Server projects are unaffected.
+The existing repository `Directory.Build.targets` is packed under
+`buildTransitive/PANiXiDA.Core.Observability.targets`; no separate source file is
+maintained. Repository-only package metadata is guarded by the original file name
+and is not applied when NuGet imports the renamed file in a consuming project.
 An explicit value of this property in the consuming project is preserved; setting
 it to `false` makes the unsupported transitive server framework reference visible
 again and prevents WASM publishing.

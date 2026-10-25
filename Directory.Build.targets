@@ -1,5 +1,5 @@
 <Project>
-    <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+    <PropertyGroup Condition="'$(MSBuildThisFileName)' == 'Directory.Build' And '$(IsPackable)' == 'true'">
         <Authors>PANiXiDA</Authors>
         <Company>PANiXiDA</Company>
         <RepositoryType>git</RepositoryType>
@@ -15,7 +15,7 @@
         <PackageIcon>icon.png</PackageIcon>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+    <ItemGroup Condition="'$(MSBuildThisFileName)' == 'Directory.Build' And '$(IsPackable)' == 'true'">
         <None Include="$(MSBuildThisFileDirectory)README.md"
               Pack="true"
               PackagePath="\"
@@ -25,5 +25,14 @@
               Pack="true"
               PackagePath="\"
               Visible="false" />
+
+        <None Include="$(MSBuildThisFileFullPath)"
+              Pack="true"
+              PackagePath="buildTransitive/$(PackageId).targets"
+              Visible="false" />
     </ItemGroup>
+
+    <PropertyGroup Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true' And '$(DisableTransitiveFrameworkReferences)' == ''">
+        <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
+    </PropertyGroup>
 </Project>

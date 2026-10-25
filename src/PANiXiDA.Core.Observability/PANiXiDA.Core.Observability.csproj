@@ -30,8 +30,5 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="PANiXiDA.Core.Observability.WebAssembly.UnitTests" />
-        <None Include="buildTransitive/PANiXiDA.Core.Observability.targets"
-              Pack="true"
-              PackagePath="buildTransitive/" />
     </ItemGroup>
 </Project>

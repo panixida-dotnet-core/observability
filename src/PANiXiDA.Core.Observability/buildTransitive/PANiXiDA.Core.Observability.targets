@@ -1,5 +1,0 @@
-<Project>
-    <PropertyGroup Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true' And '$(DisableTransitiveFrameworkReferences)' == ''">
-        <DisableTransitiveFrameworkReferences>true</DisableTransitiveFrameworkReferences>
-    </PropertyGroup>
-</Project>

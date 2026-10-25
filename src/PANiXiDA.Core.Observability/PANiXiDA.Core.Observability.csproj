@@ -1,12 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <IsPackable>true</IsPackable>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
 
         <AssemblyName>PANiXiDA.Core.Observability</AssemblyName>
 
         <PackageId>PANiXiDA.Core.Observability</PackageId>
-        <Description>Reusable observability building blocks for .NET applications based on OpenTelemetry, including logging, metrics, tracing, correlation, and telemetry configuration.</Description>
-        <PackageTags>Observability;OpenTelemetry;Telemetry;Tracing;Metrics;Logging;DistributedTracing;Diagnostics;DotNet</PackageTags>
+        <Description>OpenTelemetry logging, metrics, and tracing conventions for ASP.NET Core servers and Blazor WebAssembly clients.</Description>
+        <PackageTags>Observability;OpenTelemetry;Telemetry;Tracing;Metrics;Logging;DistributedTracing;Diagnostics;DotNet;Blazor;WebAssembly</PackageTags>
 
         <RepositoryUrl>https://github.com/panixida-dotnet-core/observability</RepositoryUrl>
         <PackageProjectUrl>https://github.com/panixida-dotnet-core/observability</PackageProjectUrl>
@@ -16,11 +18,20 @@
         <PackageReference Include="Nerdbank.GitVersioning">
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+        <PackageReference Include="Microsoft.Extensions.Http" />
         <PackageReference Include="Npgsql.OpenTelemetry" />
         <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
         <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Http" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="PANiXiDA.Core.Observability.WebAssembly.UnitTests" />
+        <None Include="buildTransitive/PANiXiDA.Core.Observability.targets"
+              Pack="true"
+              PackagePath="buildTransitive/" />
     </ItemGroup>
 </Project>

@@ -2,7 +2,9 @@
 
 `PANiXiDA.Core.Observability` is a .NET package that adds PANiXiDA host observability conventions on top of OpenTelemetry.
 
-It is intended for ASP.NET Core services that need consistent logging, metrics, tracing, resource metadata, and OTLP exporter wiring without duplicating bootstrap code in every service.
+The same package supports ASP.NET Core servers and Blazor WebAssembly clients.
+Each host calls `builder.AddObservability()` using the extension for its builder;
+the server and browser configurations stay separate inside one assembly.
 
 ## Status
 
@@ -26,7 +28,8 @@ The package configures OpenTelemetry for ASP.NET Core hosts with:
 ## Requirements
 
 - .NET 10 SDK
-- ASP.NET Core application using `WebApplicationBuilder`
+- ASP.NET Core application using `WebApplicationBuilder`, or a Blazor WebAssembly
+  application using `WebAssemblyHostBuilder`
 - OTLP-compatible collector or backend when telemetry export is enabled
 
 ## Installation
@@ -331,10 +334,11 @@ See the [LICENSE](LICENSE) file for details.
 
 ## Blazor WebAssembly
 
-Install `PANiXiDA.Core.Observability.WebAssembly` 1.1.0 in the client project.
-The existing `PANiXiDA.Core.Observability` package remains the ASP.NET Core server
-adapter and keeps its existing API. The browser package does not reference
-Npgsql or the ASP.NET Core server shared framework.
+Install `PANiXiDA.Core.Observability` 1.1.0 in both the server and client projects.
+There is one source project, one assembly, and one NuGet package, all targeting
+`net10.0`. The server keeps its existing API and complete instrumentation,
+including `AddAspNetCoreInstrumentation()`. The client keeps `net10.0`, so the
+server can continue referencing the client for prerendering and Interactive Auto.
 
 ```csharp
 using PANiXiDA.Core.Observability.WebAssembly;
@@ -365,7 +369,32 @@ Enable the runtime features explicitly in the consuming Blazor client `.csproj`:
 `MetricsSupport` enables the metrics APIs, `EventSourceSupport` preserves
 EventSource diagnostics, and `HttpActivityPropagationSupport` enables the runtime's
 HTTP activities and W3C propagation. These settings do not enable CPU profilers
-or EventPipe dumps. The package does not change consuming projects' build properties.
+or EventPipe dumps.
+
+### Browser build compatibility
+
+The package includes both server and browser dependencies in the NuGet dependency
+graph. Server dependencies are restored for the client too, but browser registration
+does not call server instrumentation. The assembly supports trimming; Release
+publishing removes unreachable server code and reduces unused dependencies.
+Some small dependency assemblies can remain. Untrimmed development builds retain
+the server dependency assemblies.
+
+`OpenTelemetry.Instrumentation.AspNetCore` carries a transitive
+`Microsoft.AspNetCore.App` framework reference, which has no `browser-wasm` runtime
+pack. The package's `buildTransitive` target therefore defaults the standard SDK
+property `DisableTransitiveFrameworkReferences` to `true` only for projects using
+`Microsoft.NET.Sdk.BlazorWebAssembly`. This disables **all transitive shared
+framework references in that browser project**, not just those introduced by this
+package. Direct framework references are unaffected. Server projects are unaffected.
+An explicit value of this property in the consuming project is preserved; setting
+it to `false` makes the unsupported transitive server framework reference visible
+again and prevents WASM publishing.
+
+This setting controls framework resolution, not telemetry filtering. It does not
+make server APIs browser-compatible: client code must use the WebAssembly extension
+namespace shown above. No custom compiler, bundled third-party DLLs, or alternate
+target framework is required.
 
 Configure the client in its public `wwwroot/appsettings.json`, for example:
 

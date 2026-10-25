@@ -8,7 +8,7 @@
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
     <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
     <PackageReference Include="xunit.v3" />
-    <ProjectReference Include="../../src/PANiXiDA.Core.Observability.WebAssembly/PANiXiDA.Core.Observability.WebAssembly.csproj" />
+    <ProjectReference Include="../../src/PANiXiDA.Core.Observability/PANiXiDA.Core.Observability.csproj" />
     <Using Include="Xunit" />
     <Using Include="Shouldly" />
   </ItemGroup>

@@ -12,7 +12,6 @@
   },
   "pathFilters": [
     ":/src/PANiXiDA.Core.Observability/",
-    ":/src/PANiXiDA.Core.Observability.WebAssembly/",
     ":/Directory.Build.props",
     ":/Directory.Build.targets",
     ":/Directory.Packages.props",
@@ -20,5 +19,5 @@
     ":/version.json",
     ":/README.md",
     ":/icon.png"
-  ]  
+  ]
 }

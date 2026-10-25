@@ -16,7 +16,6 @@
     <File Path="version.json" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="src/PANiXiDA.Core.Observability.WebAssembly/PANiXiDA.Core.Observability.WebAssembly.csproj" />
     <Project Path="src/PANiXiDA.Core.Observability/PANiXiDA.Core.Observability.csproj" />
   </Folder>
   <Folder Name="/tests/">

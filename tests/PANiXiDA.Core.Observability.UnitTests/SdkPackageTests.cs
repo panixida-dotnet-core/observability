@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Reflection;
 using System.Security;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -151,8 +152,9 @@ public sealed class SdkPackageFixture : IAsyncLifetime
 
         var projectPath = Path.Combine(repository!.FullName, "src", "PANiXiDA.Core.Observability", "PANiXiDA.Core.Observability.csproj");
         var feed = Path.Combine(RootDirectory, "feed");
+        var configuration = typeof(SdkPackageFixture).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
         var result = await RunAsync(repository.FullName,
-            ["pack", projectPath, "-c", "Release", "--no-build", "--no-restore", "--nologo", "-o", feed]);
+            ["pack", projectPath, "-c", configuration, "--no-build", "--no-restore", "--nologo", "-o", feed]);
         result.ExitCode.ShouldBe(0, result.Output);
         ZipFile.ExtractToDirectory(Directory.GetFiles(feed, "*.nupkg").Single(), PackageDirectory);
     }

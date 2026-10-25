@@ -347,11 +347,11 @@ host.UseObservability();
 await host.RunAsync();
 ```
 
-`AddObservability` configures OpenTelemetry logging, all published ActivitySource
-and Meter sources, and protobuf OTLP export. It subscribes to existing signals;
-it does not invent business metrics or capture arbitrary JavaScript console
-messages. Missing sources produce no data. `UseObservability` initializes the
-providers because WebAssembly does not run the server's hosted-service lifecycle.
+`AddObservability` follows the Microsoft Blazor client defaults: component metrics
+and traces, standard HTTP instrumentation, logging, and protobuf OTLP export.
+The SDK keeps its default batch sizes and export intervals. Register additional
+application sources with `AddSource` / `AddMeter` when needed. `UseObservability`
+starts the standard SDK initializer on .NET 10 and is a no-op when export is disabled.
 Enable the runtime features explicitly in the consuming Blazor client `.csproj`:
 
 ```xml
@@ -367,28 +367,51 @@ EventSource diagnostics, and `HttpActivityPropagationSupport` enables the runtim
 HTTP activities and W3C propagation. These settings do not enable CPU profilers
 or EventPipe dumps. The package does not change consuming projects' build properties.
 
-Set the public `OTEL_SERVICE_NAME` client configuration to identify the browser
-application. A random instance ID is shared by all three signals for the lifetime
-of the client. This ID is not a user or device identifier.
+Configure the client in its public `wwwroot/appsettings.json`, for example:
+
+```json
+{
+  "OTEL_SERVICE_NAME": "my-client",
+  "OTEL_EXPORTER_OTLP_ENDPOINT": "/telemetry",
+  "OpenTelemetry": {
+    "Otlp": {
+      "MaxRequestSizeBytes": 1048576
+    }
+  }
+}
+```
+
+Without `OTEL_EXPORTER_OTLP_ENDPOINT`, no exporter is registered. When an endpoint
+is set, `OTEL_SERVICE_NAME` is required. As in the Microsoft template, the service
+name is also the instance ID, grouping browser tabs under one service instance.
+Relative endpoints resolve against the app's base address; absolute HTTP endpoints
+are also supported. The library does not assume a BFF route.
 
 HTTP spans, duration measurements, and W3C context propagation use the standard
 .NET HTTP instrumentation, including directly constructed `HttpClient` instances.
 Propagation follows the runtime defaults; external APIs must permit tracing headers
 in their CORS policy. The OTLP SDK suppresses tracing of its own export requests.
 
-The browser posts to the same-origin routes `telemetry/v1/logs`,
-`telemetry/v1/metrics`, and `telemetry/v1/traces`. The application must expose these
-routes through its BFF and forward them to an OTLP HTTP receiver. Do not put
+The exporter appends `v1/logs`, `v1/metrics`, and `v1/traces` to the configured
+endpoint. The application can expose that path through its BFF and forward
+requests to an OTLP HTTP receiver. Do not put
 collector credentials in client configuration. Use separate client service names
 and treat incoming browser resource attributes as untrusted.
 
 OpenTelemetry 1.19.1 supplies protobuf serialization and browser-compatible OTLP
-delivery without a custom transport or HttpClientFactory override. SDK trace and
-log queues are capped at 256 records each, with batches of 64. Delivery is best
-effort; a failed receiver or closing the tab can lose records. The BFF may impose
-additional request limits, including a 64 KiB payload limit in Tactical Heroes admin.
+delivery without a custom transport or HttpClientFactory override. Delivery is
+best effort; a failed receiver or closing the tab can lose records.
+
+`OpenTelemetry:Otlp:MaxRequestSizeBytes` is an optional package configuration key
+mapped to the SDK's request size limit. If omitted, the SDK default applies.
+OpenTelemetry 1.19.1 accepts 750,000 through 268,435,456 bytes; unsupported values
+fail provider initialization. Oversized batches are dropped by the SDK rather
+than sent. Keep the client limit at or below the BFF body limit, and the BFF limit
+at or below the Collector receiver limit. Tactical Heroes configures all three
+to 1 MiB. Reverse-proxy and HTTP server limits still apply.
 
 ### Tests
 
 The native test projects cover server compatibility, protobuf export for all
-signals, HTTP trace-context propagation, and public argument validation.
+signals at configurable endpoints, disabled export, HTTP trace-context propagation,
+configuration validation, and public argument validation.

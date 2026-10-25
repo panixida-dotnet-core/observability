@@ -381,12 +381,7 @@ requests of up to 64 KiB each, a five-second network timeout and a 30-second que
 age limit. Failed requests are dropped; closing a tab can lose pending records.
 SDK trace and log queues are capped at 256 records each, with batches of 64.
 
-### Browser validation
+### Tests
 
 The native test projects cover server compatibility, protobuf export for all
-signals, bounded delivery, buffer ownership and same-origin propagation. For local
-browser validation, run `tests/browser-smoke.cjs` in Chromium against
-`tests/BrowserSmoke.Host`. It verifies real single-threaded WASM startup, HTTP
-traceparent propagation, delivery of all three OTLP signals, and a responsive UI
-while the receiving endpoint returns 503. Run the smoke host on localhost:5189,
-then run the script with Playwright available to Node.js.
+signals, bounded delivery, buffer ownership and same-origin propagation.

@@ -25,5 +25,39 @@
               Pack="true"
               PackagePath="\"
               Visible="false" />
+
+        <None Update="Sdk/Sdk.props;Sdk/Sdk.targets;buildTransitive/$(PackageId).targets"
+              Pack="true"
+              PackagePath="%(Identity)"
+              Visible="false" />
+
+        <None Include="$(IntermediateOutputPath)Observability.Dependencies.props"
+              Pack="true"
+              PackagePath="Sdk/Dependencies.props"
+              Visible="false" />
     </ItemGroup>
+
+    <Target Name="GeneratePanixidaObservabilitySdkDependencies"
+            BeforeTargets="_GetPackageFiles"
+            Condition="'$(IsPackable)' == 'true'">
+        <ItemGroup>
+            <_PanixidaObservabilityPackDependency Include="@(PackageReference)"
+                Condition="'%(PackageReference.ObservabilityHost)' != ''" />
+        </ItemGroup>
+        <JoinItems Left="@(_PanixidaObservabilityPackDependency)" LeftMetadata="ObservabilityHost"
+                   Right="@(PackageVersion)" RightMetadata="Version">
+            <Output TaskParameter="JoinResult" ItemName="_PanixidaObservabilityVersionedDependency" />
+        </JoinItems>
+        <ItemGroup>
+            <_PanixidaObservabilitySdkLine Include="&lt;Project&gt;" />
+            <_PanixidaObservabilitySdkLine Include="  &lt;ItemGroup&gt;" />
+            <_PanixidaObservabilitySdkLine Include="@(_PanixidaObservabilityVersionedDependency->'    &lt;_PanixidaObservabilityDependency Include=&quot;%(Identity)&quot; Version=&quot;%(Version)&quot; Host=&quot;%(ObservabilityHost)&quot; /&gt;')" />
+            <_PanixidaObservabilitySdkLine Include="  &lt;/ItemGroup&gt;" />
+            <_PanixidaObservabilitySdkLine Include="&lt;/Project&gt;" />
+        </ItemGroup>
+        <WriteLinesToFile File="$(IntermediateOutputPath)Observability.Dependencies.props"
+                          Lines="@(_PanixidaObservabilitySdkLine)"
+                          Overwrite="true"
+                          WriteOnlyWhenDifferent="true" />
+    </Target>
 </Project>

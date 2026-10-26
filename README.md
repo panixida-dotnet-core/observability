@@ -1,8 +1,10 @@
 # PANiXiDA.Core.Observability
 
-`PANiXiDA.Core.Observability` is a .NET package that adds PANiXiDA host observability conventions on top of OpenTelemetry.
+`PANiXiDA.Core.Observability` is an MSBuild SDK package that adds PANiXiDA host observability conventions on top of OpenTelemetry.
 
 It is intended for ASP.NET Core services that need consistent logging, metrics, tracing, resource metadata, and OTLP exporter wiring without duplicating bootstrap code in every service.
+
+The same package and assembly also support Blazor WebAssembly clients.
 
 ## Status
 
@@ -26,16 +28,28 @@ The package configures OpenTelemetry for ASP.NET Core hosts with:
 ## Requirements
 
 - .NET 10 SDK
-- ASP.NET Core application using `WebApplicationBuilder`
+- ASP.NET Core application using `WebApplicationBuilder`, or a Blazor WebAssembly client using `WebAssemblyHostBuilder`
 - OTLP-compatible collector or backend when telemetry export is enabled
 
 ## Installation
 
-```xml
-<ItemGroup>
-  <PackageReference Include="PANiXiDA.Core.Observability" Version="1.0.0" />
-</ItemGroup>
+Set the SDK version in `global.json`:
+
+```json
+{
+  "msbuild-sdks": {
+    "PANiXiDA.Core.Observability": "2.0.0"
+  }
+}
 ```
+
+Add to each host `.csproj`, keeping its existing primary SDK and `net10.0` target:
+
+```xml
+<Sdk Name="PANiXiDA.Core.Observability" />
+```
+
+The SDK resolves through configured NuGet feeds and selects server or browser dependencies.
 
 ## Quick Start
 
@@ -81,6 +95,47 @@ Set the service name outside the package with OpenTelemetry resource configurati
 ```bash
 OTEL_SERVICE_NAME=orders-api
 ```
+
+### Blazor WebAssembly
+
+```csharp
+using PANiXiDA.Core.Observability.WebAssembly;
+
+var builder = WebAssemblyHostBuilder.CreateDefault(args);
+builder.AddObservability();
+var host = builder.Build();
+host.UseObservability();
+await host.RunAsync();
+```
+
+Enable in the client `.csproj`:
+
+```xml
+<PropertyGroup>
+  <MetricsSupport>true</MetricsSupport>
+  <EventSourceSupport>true</EventSourceSupport>
+  <HttpActivityPropagationSupport>true</HttpActivityPropagationSupport>
+</PropertyGroup>
+```
+
+Configure public `wwwroot/appsettings.json`:
+
+```json
+{
+  "OTEL_SERVICE_NAME": "admin-client",
+  "OTEL_EXPORTER_OTLP_ENDPOINT": "/telemetry",
+  "OpenTelemetry": {
+    "Otlp": { "MaxRequestSizeBytes": 1048576 }
+  }
+}
+```
+
+The client collects Blazor/HTTP telemetry and application logs. Export is disabled
+without an endpoint; enabled export requires a nonblank service name. Options
+validation checks the name, HTTP/HTTPS endpoint, and optional request limit.
+Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
+`v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
+BFF/collector limits and keep collector credentials on the server.
 
 ## Configuration
 
@@ -251,7 +306,6 @@ public static WebApplicationBuilder AddObservability(
 
 Behavior:
 
-- validates `builder`;
 - configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
 - subscribes to Wolverine and Quartz 4.x metrics and traces without requiring dependencies on these libraries;

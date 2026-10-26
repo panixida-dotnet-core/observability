@@ -23,13 +23,8 @@ public static class WebApplicationBuilderExtensions
     /// </summary>
     /// <param name="builder">The web application builder to configure.</param>
     /// <returns>The configured <see cref="WebApplicationBuilder"/> instance.</returns>
-    /// <exception cref="ArgumentNullException">
-    /// Thrown when <paramref name="builder"/> is <see langword="null"/>.
-    /// </exception>
     public static WebApplicationBuilder AddObservability(this WebApplicationBuilder builder)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-
         var serviceVersion = GetServiceVersion(Assembly.GetEntryAssembly());
 
         builder.Services.AddHttpContextAccessor();

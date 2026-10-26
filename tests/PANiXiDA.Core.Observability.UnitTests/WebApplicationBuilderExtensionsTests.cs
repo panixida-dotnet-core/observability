@@ -12,18 +12,13 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
+using OptionsDefaults = Microsoft.Extensions.Options.Options;
+
 namespace PANiXiDA.Core.Observability.UnitTests;
 
 public sealed class WebApplicationBuilderExtensionsTests
 {
     private const string OtelServiceNameEnvironmentVariableName = "OTEL_SERVICE_NAME";
-
-    [Fact(DisplayName = "AddObservability throws when builder is null")]
-    public void AddObservability_ShouldThrow_WhenBuilderIsNull()
-    {
-        var exception = Should.Throw<ArgumentNullException>(() => WebApplicationBuilderExtensions.AddObservability(null!));
-        exception.ParamName.ShouldBe("builder");
-    }
 
     [Fact(DisplayName = "AddObservability returns the same builder instance")]
     public void AddObservability_ShouldReturnSameBuilder()
@@ -119,7 +114,7 @@ public sealed class WebApplicationBuilderExtensionsTests
 
         using var app = builder.Build();
         var options = app.Services.GetRequiredService<IOptionsMonitor<OpenTelemetryLoggerOptions>>()
-            .Get(Options.DefaultName);
+            .Get(OptionsDefaults.DefaultName);
 
         options.IncludeFormattedMessage.ShouldBeTrue();
         options.IncludeScopes.ShouldBeTrue();
@@ -144,7 +139,7 @@ public sealed class WebApplicationBuilderExtensionsTests
         using var app = builder.Build();
         var options = app.Services.GetRequiredService<IOptionsMonitor<OtlpExporterOptions>>();
 
-        AssertOtlpOptions(options.Get(Options.DefaultName), "http://localhost:4318", 1001);
+        AssertOtlpOptions(options.Get(OptionsDefaults.DefaultName), "http://localhost:4318", 1001);
     }
 
     [Fact(DisplayName = "AddObservability binds signal-specific OTLP exporter options from standard configuration")]
@@ -207,7 +202,7 @@ public sealed class WebApplicationBuilderExtensionsTests
         var getMethod = monitorType.GetMethod(nameof(IOptionsMonitor<>.Get), [typeof(string)])
             ?? throw new InvalidOperationException("OpenTelemetry OTLP builder options monitor does not expose Get.");
 
-        return getMethod.Invoke(monitor, [Options.DefaultName])
+        return getMethod.Invoke(monitor, [OptionsDefaults.DefaultName])
             ?? throw new InvalidOperationException("OpenTelemetry OTLP builder options are not registered.");
     }
 

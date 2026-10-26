@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +22,7 @@ public static class BrowserTelemetryEndpointRouteBuilderExtensions
         if (options.Enabled)
         {
             endpoints.MapPost($"{options.Path.TrimEnd('/')}/v1/{{signal}}", (RequestDelegate)ForwardAsync)
-                .WithMetadata(new SkipStatusCodePagesAttribute(), BrowserTelemetryEndpointMetadata.Instance)
+                .WithMetadata(BrowserTelemetryEndpointMetadata.Instance)
                 .AllowAnonymous();
         }
 

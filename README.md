@@ -38,7 +38,7 @@ Set the SDK version in `global.json`:
 ```json
 {
   "msbuild-sdks": {
-    "PANiXiDA.Core.Observability": "2.0.0"
+    "PANiXiDA.Core.Observability": "2.1.1"
   }
 }
 ```

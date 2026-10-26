@@ -102,6 +102,36 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         }
     }
 
+    [Fact(DisplayName = "SDK should compile a real WASM consumer without server assemblies or MVC metadata")]
+    public async Task SdkPackage_Should_CompileWasm_When_ServerRelayIsIncludedInLibrary()
+    {
+        var browserDirectory = Path.Combine(fixture.RootDirectory, "browser");
+        Directory.CreateDirectory(browserDirectory);
+        var projectPath = fixture.WriteProject(Path.Combine("browser", "Browser.csproj"), $$"""
+            <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <ImplicitUsings>enable</ImplicitUsings>
+                <WasmBuildNative>false</WasmBuildNative>
+              </PropertyGroup>
+              {{fixture.Imports}}
+            </Project>
+            """);
+        await File.WriteAllTextAsync(Path.Combine(browserDirectory, "Program.cs"), """
+            using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+            using PANiXiDA.Core.Observability.WebAssembly;
+            var builder = WebAssemblyHostBuilder.CreateDefault(args);
+            builder.AddObservability();
+            var host = builder.Build();
+            host.UseObservability();
+            await host.RunAsync();
+            """, TestContext.Current.CancellationToken);
+
+        var (exitCode, output) = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
+            ["build", projectPath, "--nologo", "-m:1", "-nr:false"]);
+
+        exitCode.ShouldBe(0, output);
+    }
     [Theory(DisplayName = "SDK should reject resolved versions below its supported stable dependency version")]
     [InlineData("1.18.0", false)]
     [InlineData("1.19.1-beta.1", false)]

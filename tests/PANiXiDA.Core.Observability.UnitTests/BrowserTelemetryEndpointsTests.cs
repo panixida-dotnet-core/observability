@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Claims;
+using System.Text.Encodings.Web;
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -230,6 +232,58 @@ public sealed class BrowserTelemetryEndpointsTests
         response.StatusCode.ShouldBe(expected);
     }
 
+    [Theory(DisplayName = "Browser relay should authenticate the policy scheme instead of accepting the default cookie")]
+    [InlineData(false, null, HttpStatusCode.Unauthorized)]
+    [InlineData(true, null, HttpStatusCode.Unauthorized)]
+    [InlineData(false, "invalid", HttpStatusCode.Unauthorized)]
+    [InlineData(true, "invalid", HttpStatusCode.Unauthorized)]
+    [InlineData(false, "allowed", HttpStatusCode.OK)]
+    [InlineData(true, "allowed", HttpStatusCode.OK)]
+    [InlineData(false, "denied", HttpStatusCode.Forbidden)]
+    [InlineData(true, "denied", HttpStatusCode.Forbidden)]
+    public async Task BrowserTelemetry_Should_AuthenticatePolicyScheme_When_DefaultCookieDiffers(
+        bool cookie, string? token, HttpStatusCode expected)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var fixture = await Fixture.StartAsync(cancellationToken, settings: new Dictionary<string, string?>
+        {
+            ["BrowserTelemetry:AuthorizationPolicy"] = "BearerTelemetryPolicy"
+        });
+        if (cookie)
+        {
+            using var signIn = await fixture.Client.PostAsync("test/sign-in", null, cancellationToken);
+            signIn.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        }
+        using var request = CreateRequest("logs", authenticated: false);
+        if (token is not null)
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        }
+
+        using var response = await fixture.Client.SendAsync(request, cancellationToken);
+
+        response.StatusCode.ShouldBe(expected);
+        response.Headers.Location.ShouldBeNull();
+        (await response.Content.ReadAsByteArrayAsync(cancellationToken)).ShouldBeEmpty();
+        fixture.Received.Count.ShouldBe(expected == HttpStatusCode.OK ? 1 : 0);
+    }
+
+    [Fact(DisplayName = "Browser relay should fail when its named authorization policy is missing")]
+    public async Task BrowserTelemetry_Should_Fail_When_PolicyIsMissing()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await using var fixture = await Fixture.StartAsync(cancellationToken, settings: new Dictionary<string, string?>
+        {
+            ["BrowserTelemetry:AuthorizationPolicy"] = "MissingPolicy"
+        });
+        using var request = CreateRequest("logs", authenticated: true);
+
+        using var response = await fixture.Client.SendAsync(request, cancellationToken);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.InternalServerError);
+        fixture.Received.ShouldBeEmpty();
+    }
+
     [Theory(DisplayName = "Browser relay should support claim and address rate limit partitions")]
     [InlineData("name-id", false)]
     [InlineData("no-id", false)]
@@ -382,13 +436,19 @@ public sealed class BrowserTelemetryEndpointsTests
             {
                 builder.Configuration.AddInMemoryCollection(settings);
             }
+            builder.Services.AddAuthentication("TestCookie")
+                .AddCookie("TestCookie")
+                .AddScheme<AuthenticationSchemeOptions, TestBearerHandler>("Bearer", _ => { });
             builder.Services.AddAuthorizationBuilder()
-                .AddPolicy("TelemetryPolicy", policy => policy.RequireClaim("telemetry-access", "true"));
+                .AddPolicy("TelemetryPolicy", policy => policy.RequireClaim("telemetry-access", "true"))
+                .AddPolicy("BearerTelemetryPolicy", policy => policy.AddAuthenticationSchemes("Bearer")
+                    .RequireAuthenticatedUser().RequireClaim("telemetry-access", "true"));
             builder.AddObservability();
             var bff = builder.Build();
             bff.Urls.Add("http://127.0.0.1:0");
             bff.UseStatusCodePagesWithReExecute("/status-code");
             bff.UseRouting();
+            bff.UseAuthentication();
             bff.Use(async (context, next) =>
             {
                 if (context.Request.Headers.ContainsKey("X-Test-Authenticated"))
@@ -418,6 +478,13 @@ public sealed class BrowserTelemetryEndpointsTests
             });
 
             bff.MapBrowserTelemetry();
+            bff.MapPost("/test/sign-in", async (HttpContext context) =>
+            {
+                var user = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim("sub", "cookie-user"), new Claim("telemetry-access", "true")], "TestCookie"));
+                await context.SignInAsync("TestCookie", user);
+                return Results.NoContent();
+            });
             bff.MapMethods("/status-code", [HttpMethods.Get, HttpMethods.Post], () => Results.BadRequest());
             await bff.StartAsync(cancellationToken);
             if (stopCollector)
@@ -443,6 +510,27 @@ public sealed class BrowserTelemetryEndpointsTests
         {
             length = 0;
             return false;
+        }
+    }
+
+    private sealed class TestBearerHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+        : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    {
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var token = Request.Headers.Authorization.ToString();
+            if (token.Length == 0)
+            {
+                return Task.FromResult(AuthenticateResult.NoResult());
+            }
+            if (token is not ("Bearer allowed" or "Bearer denied"))
+            {
+                return Task.FromResult(AuthenticateResult.Fail("Invalid test token."));
+            }
+            var user = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim("sub", "bearer-user"), new Claim("telemetry-access", token == "Bearer allowed" ? "true" : "false")], Scheme.Name));
+            return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(user, Scheme.Name)));
         }
     }
 }

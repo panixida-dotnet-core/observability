@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -47,25 +48,21 @@ internal sealed class BrowserTelemetryForwarder : IDisposable
 
     internal async Task<IResult> ForwardAsync(string signal, HttpContext context)
     {
+        var authorizationStatus = await AuthorizeAsync(context);
         using var lease = _limiter.AttemptAcquire(context);
         if (!lease.IsAcquired)
         {
             return Results.StatusCode(StatusCodes.Status429TooManyRequests);
         }
 
+        if (authorizationStatus is { } status)
+        {
+            return Results.StatusCode(status);
+        }
+
         if (ValidateRequest(signal, context) is { } rejection)
         {
             return Results.StatusCode(rejection);
-        }
-
-        if (_options.AuthorizationPolicy is { } policy)
-        {
-            var authorization = context.RequestServices.GetRequiredService<IAuthorizationService>();
-            var result = await authorization.AuthorizeAsync(context.User, context, policy);
-            if (!result.Succeeded)
-            {
-                return Results.StatusCode(StatusCodes.Status403Forbidden);
-            }
         }
 
         await using var body = new MemoryStream();
@@ -106,13 +103,29 @@ internal sealed class BrowserTelemetryForwarder : IDisposable
         _limiter.Dispose();
     }
 
-    private int? ValidateRequest(string signal, HttpContext context)
+    private async Task<int?> AuthorizeAsync(HttpContext context)
     {
-        if (context.User.Identity?.IsAuthenticated != true)
+        if (_options.AuthorizationPolicy is not { } policyName)
+        {
+            return context.User.Identity?.IsAuthenticated == true ? null : StatusCodes.Status401Unauthorized;
+        }
+
+        var provider = context.RequestServices.GetRequiredService<IAuthorizationPolicyProvider>();
+        var policy = await provider.GetPolicyAsync(policyName)
+            ?? throw new InvalidOperationException($"No policy found: {policyName}.");
+        var evaluator = context.RequestServices.GetRequiredService<IPolicyEvaluator>();
+        var authentication = await evaluator.AuthenticateAsync(policy, context);
+        if (!authentication.Succeeded)
         {
             return StatusCodes.Status401Unauthorized;
         }
 
+        var result = await evaluator.AuthorizeAsync(policy, authentication, context, context);
+        return result.Succeeded ? null : StatusCodes.Status403Forbidden;
+    }
+
+    private int? ValidateRequest(string signal, HttpContext context)
+    {
         if (signal is not ("logs" or "metrics" or "traces"))
         {
             return StatusCodes.Status404NotFound;

@@ -147,7 +147,8 @@ with `request.IsBrowserTelemetryRequest()` instead of checking URL prefixes.
 
 The relay requires authentication, enforces same-origin protobuf requests, and
 forwards only the body and server-owned frontend identity. `AuthorizationPolicy`
-optionally names a host policy. Defaults: `Path=/telemetry`, `MaxRequestBodySize=1048576`,
+optionally names a host policy, including its authentication schemes. Failures return
+`401`/`403` without login redirects. Defaults: `Path=/telemetry`, `MaxRequestBodySize=1048576`,
 `RequestsPerMinute=120`, `RequestTimeout=00:00:05`. Use the same path in the browser
 exporter and align body limits with the collector. The host configures authentication;
 relay traffic should not renew its session. YARP spans are collected automatically.

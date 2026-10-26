@@ -1,5 +1,5 @@
 <Project>
-    <PropertyGroup Condition="'$(MSBuildThisFileName)' == 'Directory.Build' And '$(IsPackable)' == 'true'">
+    <PropertyGroup Condition="'$(IsPackable)' == 'true'">
         <Authors>PANiXiDA</Authors>
         <Company>PANiXiDA</Company>
         <RepositoryType>git</RepositoryType>
@@ -13,10 +13,9 @@
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <PackageIcon>icon.png</PackageIcon>
-        <_PanixidaObservabilityPackaging>true</_PanixidaObservabilityPackaging>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(MSBuildThisFileName)' == 'Directory.Build' And '$(IsPackable)' == 'true'">
+    <ItemGroup Condition="'$(IsPackable)' == 'true'">
         <None Include="$(MSBuildThisFileDirectory)README.md"
               Pack="true"
               PackagePath="\"
@@ -27,14 +26,9 @@
               PackagePath="\"
               Visible="false" />
 
-        <None Include="$(MSBuildThisFileFullPath)"
+        <None Update="Sdk/Sdk.props;Sdk/Sdk.targets;buildTransitive/$(PackageId).targets"
               Pack="true"
-              PackagePath="Sdk/Sdk.targets;buildTransitive/$(PackageId).targets"
-              Visible="false" />
-
-        <None Include="$(MSBuildThisFileDirectory)Directory.Build.props"
-              Pack="true"
-              PackagePath="Sdk/Sdk.props"
+              PackagePath="%(Identity)"
               Visible="false" />
 
         <None Include="$(IntermediateOutputPath)Observability.Dependencies.props"
@@ -43,46 +37,9 @@
               Visible="false" />
     </ItemGroup>
 
-    <Import Project="$(MSBuildThisFileDirectory)Dependencies.props"
-            Condition="'$(MSBuildThisFileName)' == 'Sdk'" />
-
-    <PropertyGroup Condition="'$(MSBuildThisFileName)' == 'PANiXiDA.Core.Observability'">
-        <_PanixidaObservabilityLegacyReference>true</_PanixidaObservabilityLegacyReference>
-    </PropertyGroup>
-
-    <ItemGroup Condition="'$(MSBuildThisFileName)' == 'Sdk'">
-        <_PanixidaObservabilitySelectedDependency Include="@(_PanixidaObservabilityDependency->WithMetadataValue('Host', 'Common'))" />
-        <_PanixidaObservabilitySelectedDependency Include="@(_PanixidaObservabilityDependency->WithMetadataValue('Host', 'Browser'))"
-                                                 Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true'" />
-        <_PanixidaObservabilitySelectedDependency Include="@(_PanixidaObservabilityDependency->WithMetadataValue('Host', 'Server'))"
-                                                 Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' != 'true'" />
-        <_PanixidaObservabilityMissingDependency Include="@(_PanixidaObservabilitySelectedDependency)"
-                                               Exclude="@(PackageReference)" />
-        <PackageVersion Include="@(_PanixidaObservabilitySelectedDependency)"
-                        Exclude="@(PackageVersion)"
-                        Condition="'$(ManagePackageVersionsCentrally)' == 'true'" />
-        <PackageReference Include="@(_PanixidaObservabilityMissingDependency)"
-                          Condition="'$(ManagePackageVersionsCentrally)' != 'true'" />
-        <PackageReference Include="@(_PanixidaObservabilityMissingDependency)"
-                          Condition="'$(ManagePackageVersionsCentrally)' == 'true'">
-            <Version />
-        </PackageReference>
-        <Reference Include="PANiXiDA.Core.Observability">
-            <HintPath>$(MSBuildThisFileDirectory)../lib/net10.0/PANiXiDA.Core.Observability.dll</HintPath>
-            <Private>true</Private>
-        </Reference>
-    </ItemGroup>
-
-    <Target Name="RequirePanixidaObservabilitySdk"
-            BeforeTargets="PrepareForBuild"
-            Condition="'$(_PanixidaObservabilityLegacyReference)' == 'true'">
-        <Error Code="PANOBS002"
-               Text="PANiXiDA.Core.Observability 2.x must be referenced with &lt;Sdk Name=&quot;PANiXiDA.Core.Observability&quot; /&gt; and a version in global.json msbuild-sdks. Remove the ordinary PackageReference." />
-    </Target>
-
     <Target Name="GeneratePanixidaObservabilitySdkDependencies"
             BeforeTargets="_GetPackageFiles"
-            Condition="'$(_PanixidaObservabilityPackaging)' == 'true'">
+            Condition="'$(IsPackable)' == 'true'">
         <ItemGroup>
             <_PanixidaObservabilityPackDependency Include="@(PackageReference)"
                 Condition="'%(PackageReference.ObservabilityHost)' != ''" />
@@ -102,20 +59,5 @@
                           Lines="@(_PanixidaObservabilitySdkLine)"
                           Overwrite="true"
                           WriteOnlyWhenDifferent="true" />
-    </Target>
-
-    <Target Name="ValidatePanixidaObservabilitySdkDependencies"
-            AfterTargets="ResolvePackageAssets"
-            Condition="'@(_PanixidaObservabilitySelectedDependency)' != ''">
-        <JoinItems Left="@(_PanixidaObservabilitySelectedDependency)" LeftMetadata="Version"
-                   Right="@(ResolvedCompileFileDefinitions)" RightKey="NuGetPackageId" RightMetadata="NuGetPackageVersion">
-            <Output TaskParameter="JoinResult" ItemName="_PanixidaObservabilityResolvedDependency" />
-        </JoinItems>
-        <Error Code="PANOBS001"
-               Condition="'%(_PanixidaObservabilityResolvedDependency.NuGetPackageVersion)' != '' And
-                          ($([MSBuild]::VersionLessThan('%(_PanixidaObservabilityResolvedDependency.NuGetPackageVersion)', '%(_PanixidaObservabilityResolvedDependency.Version)')) Or
-                           ($([MSBuild]::VersionEquals('%(_PanixidaObservabilityResolvedDependency.NuGetPackageVersion)', '%(_PanixidaObservabilityResolvedDependency.Version)')) And
-                            $([System.Text.RegularExpressions.Regex]::IsMatch('%(_PanixidaObservabilityResolvedDependency.NuGetPackageVersion)', '^[^+]*-'))))"
-               Text="PANiXiDA observability requires %(_PanixidaObservabilityResolvedDependency.Identity) %(_PanixidaObservabilityResolvedDependency.Version) or later, but %(_PanixidaObservabilityResolvedDependency.NuGetPackageVersion) was resolved. Update the PackageReference or central PackageVersion." />
     </Target>
 </Project>

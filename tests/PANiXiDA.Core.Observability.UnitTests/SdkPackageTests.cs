@@ -16,6 +16,7 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         File.Exists(Path.Combine(fixture.PackageDirectory, "Sdk", "Sdk.props")).ShouldBeTrue();
         File.Exists(Path.Combine(fixture.PackageDirectory, "Sdk", "Sdk.targets")).ShouldBeTrue();
         File.Exists(Path.Combine(fixture.PackageDirectory, "Sdk", "Dependencies.props")).ShouldBeTrue();
+        Directory.GetFiles(fixture.PackageDirectory, "Directory.Build.*", SearchOption.AllDirectories).ShouldBeEmpty();
         var manifest = XDocument.Load(Directory.GetFiles(fixture.PackageDirectory, "*.nuspec").Single());
         manifest.Descendants().Where(element => element.Name.LocalName == "dependency").ShouldBeEmpty();
         manifest.Descendants().Where(element => element.Name.LocalName == "packageType")
@@ -36,6 +37,10 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
                 <ManagePackageVersionsCentrally>{{centralVersions}}</ManagePackageVersionsCentrally>
                 <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
                 <IsPackable>true</IsPackable>
+                <TargetFramework>net9.0</TargetFramework>
+                <Nullable>disable</Nullable>
+                <ImplicitUsings>disable</ImplicitUsings>
+                <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
                 <Authors>ConsumerOwner</Authors><Company>ConsumerCompany</Company>
                 <PackageReadmeFile>consumer.md</PackageReadmeFile><PackageIcon>consumer.png</PackageIcon>
               </PropertyGroup>
@@ -48,7 +53,7 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
             """);
 
         var result = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
-            ["msbuild", projectPath, "-nologo", "-getItem:PackageReference,PackageVersion", "-getProperty:Authors,Company,PackageReadmeFile,PackageIcon,DisableTransitiveFrameworkReferences"]);
+            ["msbuild", projectPath, "-nologo", "-getItem:PackageReference,PackageVersion", "-getProperty:Authors,Company,PackageReadmeFile,PackageIcon,DisableTransitiveFrameworkReferences,TargetFramework,Nullable,ImplicitUsings,TreatWarningsAsErrors"]);
 
         result.ExitCode.ShouldBe(0, result.Output);
         using var document = JsonDocument.Parse(result.Output);
@@ -58,6 +63,10 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         properties.GetProperty("PackageReadmeFile").GetString().ShouldBe("consumer.md");
         properties.GetProperty("PackageIcon").GetString().ShouldBe("consumer.png");
         properties.GetProperty("DisableTransitiveFrameworkReferences").GetString().ShouldBeEmpty();
+        properties.GetProperty("TargetFramework").GetString().ShouldBe("net9.0");
+        properties.GetProperty("Nullable").GetString().ShouldBe("disable");
+        properties.GetProperty("ImplicitUsings").GetString().ShouldBe("disable");
+        properties.GetProperty("TreatWarningsAsErrors").GetString().ShouldBe("false");
         var references = document.RootElement.GetProperty("Items").GetProperty("PackageReference").EnumerateArray().ToArray();
         var names = references.Select(reference => reference.GetProperty("Identity").GetString()).ToArray();
         names.Distinct().Count().ShouldBe(names.Length);

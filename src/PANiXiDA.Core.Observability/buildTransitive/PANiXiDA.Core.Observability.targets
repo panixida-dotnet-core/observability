@@ -1,0 +1,6 @@
+<Project>
+    <Target Name="RequirePanixidaObservabilitySdk" BeforeTargets="PrepareForBuild">
+        <Error Code="PANOBS002"
+               Text="PANiXiDA.Core.Observability 2.x must be referenced with &lt;Sdk Name=&quot;PANiXiDA.Core.Observability&quot; /&gt; and a version in global.json msbuild-sdks. Remove the ordinary PackageReference." />
+    </Target>
+</Project>

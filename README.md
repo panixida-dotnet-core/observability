@@ -304,6 +304,11 @@ Behavior:
 .
 |-- src/
 |   `-- PANiXiDA.Core.Observability/
+|       |-- Sdk/
+|       |   |-- Sdk.props
+|       |   `-- Sdk.targets
+|       `-- buildTransitive/
+|           `-- PANiXiDA.Core.Observability.targets
 |-- tests/
 |   `-- PANiXiDA.Core.Observability.UnitTests/
 |-- Directory.Build.props
@@ -409,12 +414,17 @@ The server adapter adds ASP.NET Core, Runtime, and Npgsql instrumentation, witho
 adding WebAssembly packages. An application can still have platform dependencies
 for other reasons: a Blazor Web App host references its WASM client for prerendering.
 
-The existing repository `Directory.Build.props` and `Directory.Build.targets` are
-packed as `Sdk/Sdk.props` and `Sdk/Sdk.targets`. A generated `Sdk/Dependencies.props`
-gets dependency versions from `Directory.Packages.props` and host classifications
-from the library's package references. No separately maintained SDK source files
-or version table are required. Repository build and package metadata are guarded
-by the original file names and do not overwrite consumer settings.
+`Directory.Build.props` and `Directory.Build.targets` configure this repository's
+build and packaging only; they are not distributed to consumers. The library's
+`Sdk/Sdk.props` and `Sdk/Sdk.targets` are separate package assets that configure
+consumer projects. The props entry point is empty; dependency selection, the DLL
+reference, and dependency validation are defined in the targets entry point.
+A generated `Sdk/Dependencies.props` gets dependency versions from
+`Directory.Packages.props` and host classifications from the library's package
+references, without a separately maintained version table. The separate
+`buildTransitive/PANiXiDA.Core.Observability.targets` only reports the migration
+error for ordinary package references. Consumer settings are not overwritten by
+this repository's build or package metadata.
 
 Both ordinary and centrally managed package versions are supported, including
 `CentralPackageVersionOverrideEnabled=false`. Existing direct references and central

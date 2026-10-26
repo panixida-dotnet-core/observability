@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Infrastructure;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
@@ -9,6 +10,8 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+
+using PANiXiDA.Core.Observability.WebAssembly.Options;
 
 namespace PANiXiDA.Core.Observability.WebAssembly;
 
@@ -20,7 +23,6 @@ public static class WebAssemblyHostBuilderExtensions
     /// <returns>The application builder.</returns>
     public static WebAssemblyHostBuilder AddObservability(this WebAssemblyHostBuilder builder)
     {
-        ArgumentNullException.ThrowIfNull(builder);
         builder.Services.AddBrowserObservability(new Uri(builder.HostEnvironment.BaseAddress), builder.Configuration);
         return builder;
     }
@@ -30,7 +32,6 @@ public static class WebAssemblyHostBuilderExtensions
     /// <returns>The application host.</returns>
     public static WebAssemblyHost UseObservability(this WebAssemblyHost host)
     {
-        ArgumentNullException.ThrowIfNull(host);
         host.Services.GetService<ITelemetryHostInitializer>()?.Initialize();
         return host;
     }
@@ -46,12 +47,16 @@ public static class WebAssemblyHostBuilderExtensions
             return;
         }
 
-        var serviceName = configuration["OTEL_SERVICE_NAME"]
-            ?? throw new InvalidOperationException("OTEL_SERVICE_NAME must be configured when OTEL_EXPORTER_OTLP_ENDPOINT is set.");
+        services.AddSingleton<IValidateOptions<BrowserObservabilityOptions>, BrowserObservabilityOptionsValidator>();
+        services.AddOptions<BrowserObservabilityOptions>()
+            .Bind(configuration)
+            .ValidateOnStart();
+
         var endpoint = new Uri(baseAddress, pathBase.TrimEnd('/') + "/");
         var maxRequestSizeBytes = configuration.GetValue<int?>("OpenTelemetry:Otlp:MaxRequestSizeBytes");
         services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(serviceName, serviceInstanceId: serviceName))
+            .ConfigureResource(resource => resource.AddDetector(provider =>
+                new BrowserServiceResourceDetector(provider.GetRequiredService<IOptions<BrowserObservabilityOptions>>())))
             .WithTracing(tracing => tracing.AddSource("Microsoft.AspNetCore.Components")
                 .AddHttpClientInstrumentation()
                 .AddOtlpExporter(options => ConfigureExporter(options, endpoint, "traces", maxRequestSizeBytes)))
@@ -73,6 +78,17 @@ public static class WebAssemblyHostBuilderExtensions
         if (maxRequestSizeBytes is { } limit)
         {
             options.MaxRequestSizeBytes = limit;
+        }
+    }
+
+    private sealed class BrowserServiceResourceDetector(IOptions<BrowserObservabilityOptions> options) : IResourceDetector
+    {
+        public Resource Detect()
+        {
+            var serviceName = options.Value.ServiceName;
+            return ResourceBuilder.CreateEmpty()
+                .AddService(serviceName, serviceInstanceId: serviceName)
+                .Build();
         }
     }
 }

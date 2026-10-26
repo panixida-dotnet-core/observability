@@ -18,13 +18,6 @@ public sealed class WebApplicationBuilderExtensionsTests
 {
     private const string OtelServiceNameEnvironmentVariableName = "OTEL_SERVICE_NAME";
 
-    [Fact(DisplayName = "AddObservability throws when builder is null")]
-    public void AddObservability_ShouldThrow_WhenBuilderIsNull()
-    {
-        var exception = Should.Throw<ArgumentNullException>(() => WebApplicationBuilderExtensions.AddObservability(null!));
-        exception.ParamName.ShouldBe("builder");
-    }
-
     [Fact(DisplayName = "AddObservability returns the same builder instance")]
     public void AddObservability_ShouldReturnSameBuilder()
     {

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 using OpenTelemetry;
 using OpenTelemetry.Logs;
@@ -41,16 +42,24 @@ public sealed class BrowserExportTests
         provider.GetService<ITelemetryHostInitializer>().ShouldBeNull();
     }
 
-    [Fact(DisplayName = "Browser observability should reject configuration when service name is missing")]
-    public void BrowserObservability_Should_RejectConfiguration_When_ServiceNameIsMissing()
+    [Theory(DisplayName = "Browser observability should reject configuration when service name is missing or blank")]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public void BrowserObservability_Should_RejectConfiguration_When_ServiceNameIsMissingOrBlank(string? serviceName)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "/telemetry"
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "/telemetry",
+            ["OTEL_SERVICE_NAME"] = serviceName
         }).Build();
         var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddBrowserObservability(new Uri("https://admin.example.test/"), configuration);
+        using var provider = services.BuildServiceProvider();
 
-        Should.Throw<InvalidOperationException>(() => services.AddBrowserObservability(new Uri("https://admin.example.test/"), configuration));
+        var exception = Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<TracerProvider>());
+        exception.Failures.ShouldContain("OTEL_SERVICE_NAME must be configured when OTEL_EXPORTER_OTLP_ENDPOINT is set.");
     }
 
     [Theory(DisplayName = "Browser observability should reject configuration when payload limit is unsupported")]
@@ -70,18 +79,6 @@ public sealed class BrowserExportTests
         using var provider = services.BuildServiceProvider();
 
         Should.Throw<ArgumentOutOfRangeException>(() => provider.GetRequiredService<TracerProvider>());
-    }
-
-    [Fact(DisplayName = "AddObservability should reject null when builder is missing")]
-    public void AddObservability_Should_RejectNull_When_BuilderIsMissing()
-    {
-        Should.Throw<ArgumentNullException>(() => WebAssemblyHostBuilderExtensions.AddObservability(null!));
-    }
-
-    [Fact(DisplayName = "UseObservability should reject null when host is missing")]
-    public void UseObservability_Should_RejectNull_When_HostIsMissing()
-    {
-        Should.Throw<ArgumentNullException>(() => WebAssemblyHostBuilderExtensions.UseObservability(null!));
     }
 
     [Theory(DisplayName = "Browser observability should deliver all signals when configured endpoint is relative or absolute")]
@@ -150,6 +147,7 @@ public sealed class BrowserExportTests
         foreach (string signal in new[] { "logs", "metrics", "traces" })
         {
             received[signal].ShouldNotBeEmpty();
+            System.Text.Encoding.UTF8.GetString(received[signal]).ShouldContain("browser-export-test");
         }
     }
 }

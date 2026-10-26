@@ -407,6 +407,11 @@ or EventPipe dumps.
 
 ### Browser build compatibility
 
+The library enables `IsAotCompatible`, including trimming, single-file, and Native
+AOT analyzers. A separate `IsTrimmable` setting is redundant. Configuration binding
+generation remains enabled for trim-safe configuration reads. Applications choose
+their own Native AOT or WebAssembly publish settings.
+
 The SDK selects browser dependencies when `UsingMicrosoftNETSdkBlazorWebAssembly`
 is true, and server dependencies otherwise. The browser graph contains HTTP and
 OTLP telemetry plus Blazor WebAssembly, without Npgsql or server instrumentation.

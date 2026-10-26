@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <IsPackable>true</IsPackable>
-        <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
         <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
         <PackageType>MSBuildSdk</PackageType>
 

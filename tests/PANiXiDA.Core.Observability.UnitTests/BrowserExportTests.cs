@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using OpenTelemetry;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -78,7 +79,8 @@ public sealed class BrowserExportTests
         services.AddBrowserObservability(new Uri("https://admin.example.test/"), configuration);
         using var provider = services.BuildServiceProvider();
 
-        Should.Throw<ArgumentOutOfRangeException>(() => provider.GetRequiredService<TracerProvider>());
+        var exception = Should.Throw<OptionsValidationException>(() => provider.GetRequiredService<TracerProvider>());
+        exception.Failures.ShouldContain("OpenTelemetry:Otlp:MaxRequestSizeBytes must be between 750000 and 268435456 bytes.");
     }
 
     [Theory(DisplayName = "Browser observability should deliver all signals when configured endpoint is relative or absolute")]
@@ -119,6 +121,13 @@ public sealed class BrowserExportTests
         builder.Services.AddBrowserObservability(new Uri(receiver.Urls.Single() + "/"), builder.Configuration);
         builder.Services.ShouldNotContain(service => service.ServiceType.FullName == "System.Net.Http.IHttpClientFactory");
         await using var application = builder.Build();
+        var exporterOptions = application.Services.GetRequiredService<IOptionsMonitor<OtlpExporterOptions>>();
+        foreach (var signal in new[] { "logs", "metrics", "traces" })
+        {
+            var options = exporterOptions.Get(signal);
+            options.Endpoint.ShouldBe(new Uri(receiver.Urls.Single() + "/configured-telemetry/v1/" + signal));
+            options.MaxRequestSizeBytes.ShouldBe(configureLimit ? 1048576 : 67108864);
+        }
         var traces = application.Services.GetRequiredService<TracerProvider>();
         var metrics = application.Services.GetRequiredService<MeterProvider>();
         _ = application.Services.GetServices<ILoggerProvider>().OfType<OpenTelemetryLoggerProvider>().Single();

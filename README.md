@@ -95,9 +95,9 @@ Configure public `wwwroot/appsettings.json`:
 ```
 
 Collects Blazor and HTTP telemetry and application logs. Export is disabled when
-the endpoint is absent. When enabled, `OTEL_SERVICE_NAME` is required and validated
-through Options; missing or blank names cause `OptionsValidationException` during
-provider initialization. Relative and absolute HTTP endpoints are supported.
+the endpoint is absent. The service name, endpoint, and request limit are bound to
+`BrowserObservabilityOptions` and validated together before provider initialization.
+Relative and absolute HTTP/HTTPS endpoints are supported.
 
 The exporter sends protobuf to `v1/logs`, `v1/metrics`, and `v1/traces` under the
 endpoint. A BFF can forward these requests to the collector. Match the optional

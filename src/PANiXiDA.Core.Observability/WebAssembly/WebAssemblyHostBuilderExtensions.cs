@@ -11,7 +11,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-using PANiXiDA.Core.Observability.WebAssembly.Options;
+using PANiXiDA.Core.Observability.Options.BrowserObservability;
 
 namespace PANiXiDA.Core.Observability.WebAssembly;
 
@@ -41,8 +41,8 @@ public static class WebAssemblyHostBuilderExtensions
         ComponentsMetricsServiceCollectionExtensions.AddComponentsMetrics(services);
         ComponentsMetricsServiceCollectionExtensions.AddComponentsTracing(services);
 
-        var pathBase = configuration["OTEL_EXPORTER_OTLP_ENDPOINT"];
-        if (string.IsNullOrWhiteSpace(pathBase))
+        var settings = configuration.Get<BrowserObservabilityOptions>() ?? new BrowserObservabilityOptions();
+        if (!settings.ExportEnabled)
         {
             return;
         }
@@ -52,30 +52,35 @@ public static class WebAssemblyHostBuilderExtensions
             .Bind(configuration)
             .ValidateOnStart();
 
-        var endpoint = new Uri(baseAddress, pathBase.TrimEnd('/') + "/");
-        var maxRequestSizeBytes = configuration.GetValue<int?>("OpenTelemetry:Otlp:MaxRequestSizeBytes");
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddDetector(provider =>
                 new BrowserServiceResourceDetector(provider.GetRequiredService<IOptions<BrowserObservabilityOptions>>())))
             .WithTracing(tracing => tracing.AddSource("Microsoft.AspNetCore.Components")
                 .AddHttpClientInstrumentation()
-                .AddOtlpExporter(options => ConfigureExporter(options, endpoint, "traces", maxRequestSizeBytes)))
+                .AddOtlpExporter("traces", configure: null))
             .WithMetrics(metrics => metrics
                 .AddMeter("Microsoft.AspNetCore.Components", "Microsoft.AspNetCore.Components.Lifecycle")
                 .AddHttpClientInstrumentation()
-                .AddOtlpExporter(options => ConfigureExporter(options, endpoint, "metrics", maxRequestSizeBytes)))
-            .WithLogging(logging => logging.AddOtlpExporter(options => ConfigureExporter(options, endpoint, "logs", maxRequestSizeBytes)), options =>
+                .AddOtlpExporter("metrics", configure: null))
+            .WithLogging(logging => logging.AddOtlpExporter("logs", configureExporter: null), options =>
             {
                 options.IncludeFormattedMessage = true;
                 options.IncludeScopes = true;
             });
+
+        foreach (var signal in new[] { "logs", "metrics", "traces" })
+        {
+            services.AddOptions<OtlpExporterOptions>(signal)
+                .Configure<IOptions<BrowserObservabilityOptions>>((exporter, browser) =>
+                    ConfigureExporter(exporter, browser.Value, baseAddress, signal));
+        }
     }
 
-    private static void ConfigureExporter(OtlpExporterOptions options, Uri endpoint, string signal, int? maxRequestSizeBytes)
+    private static void ConfigureExporter(OtlpExporterOptions options, BrowserObservabilityOptions settings, Uri baseAddress, string signal)
     {
         options.Protocol = OtlpExportProtocol.HttpProtobuf;
-        options.Endpoint = new Uri(endpoint, "v1/" + signal);
-        if (maxRequestSizeBytes is { } limit)
+        options.Endpoint = settings.GetExporterEndpoint(baseAddress, signal);
+        if (settings.MaxRequestSizeBytes is { } limit)
         {
             options.MaxRequestSizeBytes = limit;
         }

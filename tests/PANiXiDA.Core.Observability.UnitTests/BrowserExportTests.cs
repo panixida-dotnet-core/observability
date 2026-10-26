@@ -13,7 +13,9 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-namespace PANiXiDA.Core.Observability.WebAssembly.UnitTests;
+using PANiXiDA.Core.Observability.WebAssembly;
+
+namespace PANiXiDA.Core.Observability.UnitTests;
 
 public sealed class BrowserExportTests
 {

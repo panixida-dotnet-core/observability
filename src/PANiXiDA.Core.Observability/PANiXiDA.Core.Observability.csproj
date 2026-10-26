@@ -30,6 +30,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="PANiXiDA.Core.Observability.WebAssembly.UnitTests" />
+        <InternalsVisibleTo Include="PANiXiDA.Core.Observability.UnitTests" />
     </ItemGroup>
 </Project>

@@ -474,7 +474,7 @@ to 1 MiB. Reverse-proxy and HTTP server limits still apply.
 
 ### Tests
 
-The native test projects cover server compatibility, protobuf export for all
+The single native test project covers server compatibility, protobuf export for all
 signals at configurable endpoints, disabled export, HTTP trace-context propagation,
 configuration validation, public argument validation, actual package contents,
 SDK dependency selection with and without central version management, consumer

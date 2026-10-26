@@ -19,7 +19,6 @@
     <Project Path="src/PANiXiDA.Core.Observability/PANiXiDA.Core.Observability.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/PANiXiDA.Core.Observability.WebAssembly.UnitTests/PANiXiDA.Core.Observability.WebAssembly.UnitTests.csproj" />
     <Project Path="tests/PANiXiDA.Core.Observability.UnitTests/PANiXiDA.Core.Observability.UnitTests.csproj" />
   </Folder>
 </Solution>

@@ -52,11 +52,11 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
             </Project>
             """);
 
-        var result = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
+        var (exitCode, output) = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
             ["msbuild", projectPath, "-nologo", "-getItem:PackageReference,PackageVersion", "-getProperty:Authors,Company,PackageReadmeFile,PackageIcon,DisableTransitiveFrameworkReferences,TargetFramework,Nullable,ImplicitUsings,TreatWarningsAsErrors"]);
 
-        result.ExitCode.ShouldBe(0, result.Output);
-        using var document = JsonDocument.Parse(result.Output);
+        exitCode.ShouldBe(0, output);
+        using var document = JsonDocument.Parse(output);
         var properties = document.RootElement.GetProperty("Properties");
         properties.GetProperty("Authors").GetString().ShouldBe("ConsumerOwner");
         properties.GetProperty("Company").GetString().ShouldBe("ConsumerCompany");
@@ -119,13 +119,13 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
             </Project>
             """);
 
-        var result = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
+        var (exitCode, output) = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
             ["msbuild", projectPath, "-nologo", "-t:ValidatePanixidaObservabilitySdkDependencies"]);
 
-        (result.ExitCode == 0).ShouldBe(accepted, result.Output);
+        (exitCode == 0).ShouldBe(accepted, output);
         if (!accepted)
         {
-            result.Output.ShouldContain("PANOBS001");
+            output.ShouldContain("PANOBS001");
         }
     }
 
@@ -135,12 +135,12 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         var legacyImport = SecurityElement.Escape(Path.Combine(fixture.PackageDirectory, "buildTransitive", "PANiXiDA.Core.Observability.targets"));
         var projectPath = fixture.WriteProject("legacy.proj", $"<Project><Import Project=\"{legacyImport}\" /></Project>");
 
-        var result = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
+        var (exitCode, output) = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
             ["msbuild", projectPath, "-nologo", "-t:RequirePanixidaObservabilitySdk"]);
 
-        result.ExitCode.ShouldNotBe(0);
-        result.Output.ShouldContain("PANOBS002");
-        result.Output.ShouldContain("Remove the ordinary PackageReference");
+        exitCode.ShouldNotBe(0);
+        output.ShouldContain("PANOBS002");
+        output.ShouldContain("Remove the ordinary PackageReference");
     }
 }
 
@@ -162,9 +162,9 @@ public sealed class SdkPackageFixture : IAsyncLifetime
         var projectPath = Path.Combine(repository!.FullName, "src", "PANiXiDA.Core.Observability", "PANiXiDA.Core.Observability.csproj");
         var feed = Path.Combine(RootDirectory, "feed");
         var configuration = typeof(SdkPackageFixture).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var result = await RunAsync(repository.FullName,
+        var (exitCode, output) = await RunAsync(repository.FullName,
             ["pack", projectPath, "-c", configuration, "--no-build", "--no-restore", "--nologo", "-o", feed]);
-        result.ExitCode.ShouldBe(0, result.Output);
+        exitCode.ShouldBe(0, output);
         ZipFile.ExtractToDirectory(Directory.GetFiles(feed, "*.nupkg").Single(), PackageDirectory);
     }
 

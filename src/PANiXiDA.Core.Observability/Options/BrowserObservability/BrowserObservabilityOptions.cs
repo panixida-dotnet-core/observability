@@ -23,7 +23,7 @@ internal sealed class BrowserObservabilityOptions
 
     public Uri GetExporterEndpoint(Uri baseAddress, string signal)
     {
-        var endpoint = new Uri(baseAddress, Endpoint!.TrimEnd('/') + '/');
+        var endpoint = new Uri(baseAddress, $"{Endpoint!.TrimEnd('/')}/");
         return new Uri(endpoint, "v1/" + signal);
     }
 }

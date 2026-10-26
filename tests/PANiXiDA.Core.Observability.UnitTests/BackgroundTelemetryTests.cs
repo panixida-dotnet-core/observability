@@ -52,9 +52,10 @@ public sealed class BackgroundTelemetryTests
         measurements.ShouldHaveSingleItem().ShouldBe((meterName, 3L));
     }
 
-    [Theory(DisplayName = "AddObservability collects Wolverine and Quartz spans with their parent context")]
+    [Theory(DisplayName = "AddObservability collects Wolverine Quartz and YARP spans with their parent context")]
     [InlineData("Wolverine", "message processing", ActivityKind.Consumer)]
     [InlineData("Quartz", "Quartz.Job.Execute", ActivityKind.Internal)]
+    [InlineData("Yarp.ReverseProxy", "proxy.forwarder", ActivityKind.Internal)]
     public void AddObservability_ShouldCollectBackgroundTraces(string sourceName, string operationName, ActivityKind kind)
     {
         var activities = new ConcurrentBag<Activity>();

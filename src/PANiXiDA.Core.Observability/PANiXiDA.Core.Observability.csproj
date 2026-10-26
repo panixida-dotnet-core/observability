@@ -26,6 +26,7 @@
         <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" ObservabilityHost="Server" PrivateAssets="all" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Http" ObservabilityHost="Common" PrivateAssets="all" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" ObservabilityHost="Server" PrivateAssets="all" />
+        <PackageReference Include="System.Threading.RateLimiting" ObservabilityHost="Browser" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>

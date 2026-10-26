@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Security.Claims;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -99,7 +100,7 @@ public sealed class BrowserExportTests
         exception.Failures.ShouldContain("OpenTelemetry:Otlp:MaxRequestSizeBytes must be between 750000 and 268435456 bytes.");
     }
 
-    [Theory(DisplayName = "Browser observability should deliver all signals when configured endpoint is relative or absolute")]
+    [Theory(DisplayName = "Browser observability should deliver all signals through the Core relay for relative and absolute endpoints")]
     [InlineData(false, true)]
     [InlineData(true, false)]
     public async Task BrowserObservability_Should_DeliverAllSignals_When_ConfiguredEndpointIsRelativeOrAbsolute(bool absolute, bool configureLimit)
@@ -115,6 +116,7 @@ public sealed class BrowserExportTests
         receiver.MapPost("/configured-telemetry/v1/{signal}", async (string signal, HttpContext context) =>
         {
             context.Request.ContentType.ShouldBe("application/x-protobuf");
+            context.Request.Headers["X-Frontend-Service"].ToString().ShouldBe("test-frontend");
             using var body = new MemoryStream();
             await context.Request.Body.CopyToAsync(body, context.RequestAborted);
             received[signal] = body.ToArray();
@@ -126,11 +128,30 @@ public sealed class BrowserExportTests
             return Results.Bytes([], "application/x-protobuf");
         });
         await receiver.StartAsync(cancellationToken);
-        var builder = WebAssemblyTestHost.CreateBuilder(receiver.Urls.Single() + "/");
+        var relayBuilder = WebApplication.CreateSlimBuilder();
+        relayBuilder.Logging.ClearProviders();
+        relayBuilder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["BrowserTelemetry:Enabled"] = "true",
+            ["BrowserTelemetry:Path"] = "/configured-telemetry",
+            ["BrowserTelemetry:CollectorEndpoint"] = receiver.Urls.Single() + "/configured-telemetry/",
+            ["BrowserTelemetry:ServiceName"] = "test-frontend"
+        });
+        relayBuilder.Services.AddBrowserTelemetry(relayBuilder.Configuration);
+        await using var relay = relayBuilder.Build();
+        relay.Urls.Add("http://127.0.0.1:0");
+        relay.Use((context, next) =>
+        {
+            context.User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "test-user")], "test"));
+            return next(context);
+        });
+        relay.MapBrowserTelemetry();
+        await relay.StartAsync(cancellationToken);
+        var builder = WebAssemblyTestHost.CreateBuilder(relay.Urls.Single() + "/");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["OTEL_SERVICE_NAME"] = "browser-export-test",
-            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = (absolute ? receiver.Urls.Single() + "/" : "") + "configured-telemetry/",
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = (absolute ? relay.Urls.Single() + "/" : "") + "configured-telemetry/",
             ["OpenTelemetry:Otlp:MaxRequestSizeBytes"] = configureLimit ? "1048576" : null
         });
         builder.AddObservability().ShouldBeSameAs(builder);
@@ -141,7 +162,7 @@ public sealed class BrowserExportTests
         foreach (var signal in new[] { "logs", "metrics", "traces" })
         {
             var options = exporterOptions.Get(signal);
-            options.Endpoint.ShouldBe(new Uri(receiver.Urls.Single() + "/configured-telemetry/v1/" + signal));
+            options.Endpoint.ShouldBe(new Uri(relay.Urls.Single() + "/configured-telemetry/v1/" + signal));
             options.MaxRequestSizeBytes.ShouldBe(configureLimit ? 1048576 : 67108864);
         }
         var traces = application.Services.GetRequiredService<TracerProvider>();

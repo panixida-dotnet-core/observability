@@ -38,7 +38,7 @@ Set the SDK version in `global.json`:
 ```json
 {
   "msbuild-sdks": {
-    "PANiXiDA.Core.Observability": "2.0.0"
+    "PANiXiDA.Core.Observability": "2.1.1"
   }
 }
 ```
@@ -137,6 +137,21 @@ Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.
 
+### Browser telemetry relay
+
+On a BFF, set `BrowserTelemetry:Enabled` to `true`, configure `CollectorEndpoint`
+(an internal HTTP/HTTPS URL) and `ServiceName`, then call `app.MapBrowserTelemetry()`
+after `Build()`. The existing `builder.AddObservability()` registers the relay.
+Other servers leave it disabled. Session middleware can recognize relay requests
+with `request.IsBrowserTelemetryRequest()` instead of checking URL prefixes.
+
+The relay requires authentication, enforces same-origin protobuf requests, and
+forwards only the body and server-owned frontend identity. `AuthorizationPolicy`
+optionally names a host policy, including its authentication schemes. Failures return
+`401`/`403` without login redirects. Defaults: `Path=/telemetry`, `MaxRequestBodySize=1048576`,
+`RequestsPerMinute=120`, `RequestTimeout=00:00:05`. Use the same path in the browser
+exporter and align body limits with the collector. The host configures authentication;
+relay traffic should not renew its session. YARP spans are collected automatically.
 ## Configuration
 
 ### Service Name
@@ -308,7 +323,7 @@ Behavior:
 
 - configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
-- subscribes to Wolverine and Quartz 4.x metrics and traces without requiring dependencies on these libraries;
+- subscribes to Wolverine and Quartz 4.x metrics and traces and YARP traces without dependencies on these libraries;
 - adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
 - returns the same `WebApplicationBuilder` instance for chaining.
 

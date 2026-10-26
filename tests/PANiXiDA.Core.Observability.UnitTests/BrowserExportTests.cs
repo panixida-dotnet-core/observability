@@ -33,6 +33,7 @@ public sealed class BrowserExportTests
         }).Build();
 
         services.AddBrowserObservability(new Uri("https://admin.example.test/"), configuration);
+        services.ShouldNotContain(service => service.ServiceType.FullName == "System.Net.Http.IHttpClientFactory");
         using var provider = services.BuildServiceProvider();
 
         provider.GetService<TracerProvider>().ShouldBeNull();
@@ -119,6 +120,7 @@ public sealed class BrowserExportTests
             ["OpenTelemetry:Otlp:MaxRequestSizeBytes"] = configureLimit ? "1048576" : null
         });
         builder.Services.AddBrowserObservability(new Uri(receiver.Urls.Single() + "/"), builder.Configuration);
+        builder.Services.ShouldNotContain(service => service.ServiceType.FullName == "System.Net.Http.IHttpClientFactory");
         await using var application = builder.Build();
         var traces = application.Services.GetRequiredService<TracerProvider>();
         var metrics = application.Services.GetRequiredService<MeterProvider>();
@@ -132,7 +134,7 @@ public sealed class BrowserExportTests
         using (source.StartActivity("client-action"))
         {
             var parent = Activity.Current.ShouldNotBeNull();
-            using var client = application.Services.GetRequiredService<IHttpClientFactory>().CreateClient("probe");
+            using var client = new HttpClient();
             var traceparent = await client.GetStringAsync(new Uri(receiver.Urls.Single() + "/probe"), cancellationToken);
             ActivityContext.TryParse(traceparent, null, out var context).ShouldBeTrue();
             context.TraceId.ShouldBe(parent.TraceId);

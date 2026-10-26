@@ -37,7 +37,6 @@ public static class WebAssemblyHostBuilderExtensions
 
     internal static void AddBrowserObservability(this IServiceCollection services, Uri baseAddress, IConfiguration configuration)
     {
-        services.AddHttpClient();
         ComponentsMetricsServiceCollectionExtensions.AddComponentsMetrics(services);
         ComponentsMetricsServiceCollectionExtensions.AddComponentsTracing(services);
 

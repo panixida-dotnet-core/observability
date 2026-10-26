@@ -460,6 +460,10 @@ requests to an OTLP HTTP receiver. Do not put
 collector credentials in client configuration. Use separate client service names
 and treat incoming browser resource attributes as untrusted.
 
+Observability does not depend on `Microsoft.Extensions.Http` or register
+`IHttpClientFactory`. Applications can register their own HTTP clients as needed;
+HTTP instrumentation also works with clients created directly with `new HttpClient()`.
+
 OpenTelemetry 1.19.1 supplies protobuf serialization and browser-compatible OTLP
 delivery without a custom transport or HttpClientFactory override. Delivery is
 best effort; a failed receiver or closing the tab can lose records.

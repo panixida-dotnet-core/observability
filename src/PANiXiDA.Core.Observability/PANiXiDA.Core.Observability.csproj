@@ -20,7 +20,6 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" ObservabilityHost="Browser" PrivateAssets="all" />
-        <PackageReference Include="Microsoft.Extensions.Http" ObservabilityHost="Browser" PrivateAssets="all" />
         <PackageReference Include="Npgsql.OpenTelemetry" ObservabilityHost="Server" PrivateAssets="all" />
         <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" ObservabilityHost="Common" PrivateAssets="all" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" ObservabilityHost="Common" PrivateAssets="all" />

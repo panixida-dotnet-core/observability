@@ -382,7 +382,8 @@ public sealed class BrowserTelemetryEndpointsTests
             {
                 builder.Configuration.AddInMemoryCollection(settings);
             }
-            builder.Services.AddAuthorization(options => options.AddPolicy("TelemetryPolicy", policy => policy.RequireClaim("telemetry-access", "true")));
+            builder.Services.AddAuthorizationBuilder()
+                .AddPolicy("TelemetryPolicy", policy => policy.RequireClaim("telemetry-access", "true"));
             builder.AddObservability();
             var bff = builder.Build();
             bff.Urls.Add("http://127.0.0.1:0");

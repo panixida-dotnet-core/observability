@@ -10,7 +10,6 @@ internal static class WebAssemblyTestHost
 {
     public static WebAssemblyHostBuilder CreateBuilder(string baseAddress)
     {
-        // The framework constructor bootstraps browser JavaScript. Adapter tests supply host state and use real DI.
         var builder = (WebAssemblyHostBuilder)RuntimeHelpers.GetUninitializedObject(typeof(WebAssemblyHostBuilder));
         SetProperty(builder, nameof(builder.Services), new ServiceCollection());
         SetProperty(builder, nameof(builder.Configuration), new WebAssemblyHostConfiguration());

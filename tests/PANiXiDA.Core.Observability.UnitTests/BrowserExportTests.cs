@@ -21,6 +21,22 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 
 public sealed class BrowserExportTests
 {
+    [Fact(DisplayName = "WebAssembly extensions should preserve the host and skip export with empty configuration")]
+    public async Task WebAssemblyExtensions_Should_ReturnSameHost_When_ExportIsDisabled()
+    {
+        var builder = WebAssemblyTestHost.CreateBuilder("https://admin.example.test/");
+
+        var configuredBuilder = builder.AddObservability();
+        await using var host = builder.Build();
+        var configuredHost = host.UseObservability();
+
+        configuredBuilder.ShouldBeSameAs(builder);
+        configuredHost.ShouldBeSameAs(host);
+        host.Services.GetService<TracerProvider>().ShouldBeNull();
+        host.Services.GetService<MeterProvider>().ShouldBeNull();
+        host.Services.GetService<ITelemetryHostInitializer>().ShouldBeNull();
+    }
+
     [Theory(DisplayName = "Browser observability should stay disabled when endpoint is missing")]
     [InlineData(null)]
     [InlineData("")]
@@ -110,17 +126,17 @@ public sealed class BrowserExportTests
             return Results.Bytes([], "application/x-protobuf");
         });
         await receiver.StartAsync(cancellationToken);
-        var builder = WebApplication.CreateSlimBuilder();
-        builder.Logging.ClearProviders();
+        var builder = WebAssemblyTestHost.CreateBuilder(receiver.Urls.Single() + "/");
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["OTEL_SERVICE_NAME"] = "browser-export-test",
             ["OTEL_EXPORTER_OTLP_ENDPOINT"] = (absolute ? receiver.Urls.Single() + "/" : "") + "configured-telemetry/",
             ["OpenTelemetry:Otlp:MaxRequestSizeBytes"] = configureLimit ? "1048576" : null
         });
-        builder.Services.AddBrowserObservability(new Uri(receiver.Urls.Single() + "/"), builder.Configuration);
+        builder.AddObservability().ShouldBeSameAs(builder);
         builder.Services.ShouldNotContain(service => service.ServiceType.FullName == "System.Net.Http.IHttpClientFactory");
         await using var application = builder.Build();
+        application.UseObservability().ShouldBeSameAs(application);
         var exporterOptions = application.Services.GetRequiredService<IOptionsMonitor<OtlpExporterOptions>>();
         foreach (var signal in new[] { "logs", "metrics", "traces" })
         {
@@ -131,7 +147,6 @@ public sealed class BrowserExportTests
         var traces = application.Services.GetRequiredService<TracerProvider>();
         var metrics = application.Services.GetRequiredService<MeterProvider>();
         _ = application.Services.GetServices<ILoggerProvider>().OfType<OpenTelemetryLoggerProvider>().Single();
-        application.Services.GetRequiredService<ITelemetryHostInitializer>().Initialize();
         using var source = new ActivitySource("Microsoft.AspNetCore.Components");
         using var meter = new Meter("Microsoft.AspNetCore.Components");
         using var customSource = new ActivitySource("unregistered-browser-probe");
@@ -145,7 +160,7 @@ public sealed class BrowserExportTests
             ActivityContext.TryParse(traceparent, null, out var context).ShouldBeTrue();
             context.TraceId.ShouldBe(parent.TraceId);
             context.SpanId.ShouldNotBe(parent.SpanId);
-            application.Logger.LogWarning("Browser export probe");
+            application.Services.GetRequiredService<ILogger<BrowserExportTests>>().LogWarning("Browser export probe");
             meter.CreateCounter<long>("browser.actions").Add(1);
         }
 

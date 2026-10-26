@@ -25,6 +25,7 @@ public static class WebApplicationBuilderExtensions
     /// <returns>The configured <see cref="WebApplicationBuilder"/> instance.</returns>
     public static WebApplicationBuilder AddObservability(this WebApplicationBuilder builder)
     {
+        builder.Services.AddBrowserTelemetry(builder.Configuration);
         var serviceVersion = GetServiceVersion(Assembly.GetEntryAssembly());
 
         builder.Services.AddHttpContextAccessor();
@@ -44,7 +45,7 @@ public static class WebApplicationBuilderExtensions
             .WithTracing(tracingBuilder =>
             {
                 tracingBuilder
-                    .AddSource("Wolverine", "Quartz")
+                    .AddSource("Wolverine", "Quartz", "Yarp.ReverseProxy")
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddNpgsql();

@@ -70,8 +70,8 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         var references = document.RootElement.GetProperty("Items").GetProperty("PackageReference").EnumerateArray().ToArray();
         var names = references.Select(reference => reference.GetProperty("Identity").GetString()).ToArray();
         names.Distinct().Count().ShouldBe(names.Length);
-        names.Length.ShouldBe(browser ? 5 : 7);
-        names.ShouldContain("System.Threading.RateLimiting");
+        names.Length.ShouldBe(browser ? 5 : 6);
+        names.Contains("System.Threading.RateLimiting").ShouldBe(browser);
         names.Contains("Microsoft.AspNetCore.Components.WebAssembly").ShouldBe(browser);
         names.ShouldNotContain("Microsoft.Extensions.Http");
         names.Contains("Npgsql.OpenTelemetry").ShouldBe(!browser);

@@ -22,6 +22,40 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 
 public sealed class BrowserExportTests
 {
+    [Fact(DisplayName = "Browser telemetry should share a generated instance ID across all signals")]
+    public async Task BrowserObservability_Should_ShareGeneratedInstanceId_When_ExportIsEnabled()
+    {
+        var builder = WebAssemblyTestHost.CreateBuilder("https://admin.example.test/");
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["OTEL_SERVICE_NAME"] = "browser-instance-test",
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "/telemetry"
+        });
+        builder.AddObservability();
+        await using var host = builder.Build();
+
+        host.UseObservability();
+
+        var providers = new BaseProvider[]
+        {
+            host.Services.GetRequiredService<TracerProvider>(),
+            host.Services.GetRequiredService<MeterProvider>(),
+            host.Services.GetServices<ILoggerProvider>().OfType<OpenTelemetryLoggerProvider>().Single()
+        };
+        var instanceIds = providers.Select(provider => provider.GetResource().Attributes
+            .Single(attribute => attribute.Key == "service.instance.id").Value.ShouldBeOfType<string>()).ToArray();
+        Guid.TryParse(instanceIds[0], out var instanceId).ShouldBeTrue();
+        instanceId.ShouldNotBe(Guid.Empty);
+        instanceIds.ShouldAllBe(value => value == instanceIds[0]);
+        providers.ShouldAllBe(provider => provider.GetResource().Attributes
+            .Any(attribute => attribute.Key == "service.name" && Equals(attribute.Value, "browser-instance-test")));
+
+        host.UseObservability();
+
+        providers.ShouldAllBe(provider => provider.GetResource().Attributes
+            .Any(attribute => attribute.Key == "service.instance.id" && Equals(attribute.Value, instanceIds[0])));
+    }
+
     [Fact(DisplayName = "WebAssembly extensions should preserve the host and skip export with empty configuration")]
     public async Task WebAssemblyExtensions_Should_ReturnSameHost_When_ExportIsDisabled()
     {

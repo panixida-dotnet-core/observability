@@ -92,7 +92,7 @@ public static class WebAssemblyHostBuilderExtensions
         {
             var serviceName = options.Value.ServiceName;
             return ResourceBuilder.CreateEmpty()
-                .AddService(serviceName, serviceInstanceId: serviceName)
+                .AddService(serviceName)
                 .Build();
         }
     }

@@ -39,6 +39,8 @@ public static class WebApplicationBuilderExtensions
                         serviceName: builder.Environment.ApplicationName,
                         serviceVersion: serviceVersion,
                         serviceInstanceId: Environment.MachineName)
+                    .AddAttributes([new KeyValuePair<string, object>(
+                        "deployment.environment", builder.Environment.EnvironmentName.ToLowerInvariant())])
                     .AddEnvironmentVariableDetector()
                     .AddTelemetrySdk();
             })

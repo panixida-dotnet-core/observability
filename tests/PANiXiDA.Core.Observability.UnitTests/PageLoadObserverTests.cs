@@ -40,6 +40,10 @@ public sealed partial class BrowserPerformanceTelemetryTests
         int parent = renderer.MountParent();
         await renderer.NavigateParentAsync(parent, 1, () =>
             matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/products/{Id:int}")));
+        collector.RecordNavigation(0, 16);
+        collector.RecordPageReady(0, 1, 16);
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/products/{Id:int}"));
+        collector.RecordNavigation(0, 16);
         collector.RecordPageReady(0, 1, 16);
 
         await renderer.NavigateParentAsync(parent, 2, () =>
@@ -47,6 +51,7 @@ public sealed partial class BrowserPerformanceTelemetryTests
             navigation.NavigateTo("https://admin.example.test/products/2");
             matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/products/{Id:int}"));
         });
+        collector.RecordNavigation(1, 16);
         await renderer.DrainAsync();
         collector.RecordPageReady(1, 1, 16);
 
@@ -59,6 +64,7 @@ public sealed partial class BrowserPerformanceTelemetryTests
             navigation.NavigateTo("https://admin.example.test/other");
             matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/other"));
         }, showObserver: false);
+        collector.RecordNavigation(2, 16);
         await renderer.DrainAsync();
         collector.RecordPageReady(2, 1, 16);
         activities.Count(activity => activity.OperationName == "browser.page.load").ShouldBe(2);
@@ -174,8 +180,9 @@ public sealed partial class BrowserPerformanceTelemetryTests
     public async Task PageLoad_Should_TolerateInteropFailureAndDisabledLogging()
     {
         var runtime = new TestRuntime { FailRoute = true };
+        var navigation = new TestNavigationManager();
         using var collector = new BrowserPerformanceTelemetry(NullLogger<BrowserPerformanceTelemetry>.Instance);
-        collector.Start(runtime);
+        collector.Start(runtime, navigation);
         using var routes = new Meter("Microsoft.AspNetCore.Components");
         routes.CreateCounter<long>("aspnetcore.components.navigate")
             .Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/"));
@@ -183,10 +190,11 @@ public sealed partial class BrowserPerformanceTelemetryTests
         Should.NotThrow(() => collector.PageRendered(observer, false, false));
         collector.PageRemoved(observer);
         collector.PageRemoved(observer);
+        navigation.NavigateTo("https://admin.example.test/failed");
         routes.CreateCounter<long>("aspnetcore.components.navigation")
             .Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/failed"));
         collector.PageRendered(observer, false, true);
-        collector.RecordPageReady(0, 1, 0);
+        collector.RecordPageReady(1, 1, 0);
         await Task.CompletedTask;
     }
 

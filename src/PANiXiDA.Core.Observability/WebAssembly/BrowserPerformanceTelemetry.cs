@@ -35,10 +35,11 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
     private string? _currentRoute;
     private long _navigationId;
     private long _navigationStarted;
+    private bool _routeMatched;
     private PageNavigation? _pageNavigation;
     private DotNetObjectReference<BrowserPerformanceTelemetry>? _reference;
     private IJSInProcessRuntime? _runtime;
-    internal event Action? RouteMatched;
+    internal event Action? PageObservationRequested;
 
     internal void Start(IJSInProcessRuntime runtime, NavigationManager? navigationManager = null)
     {
@@ -165,6 +166,10 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             return;
         }
         _pageNavigation = null;
+        if (_pageLoad is { Observer: null })
+        {
+            PageObservationRequested?.Invoke();
+        }
         TagList tags =
         [
             new(PageRouteAttribute, page.Route),
@@ -218,11 +223,16 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         _navigationStarted = Stopwatch.GetTimestamp();
         _navigationId++;
         _pageNavigation = null;
+        _routeMatched = false;
         InvokeNavigation("panixidaObservability.navigationStarted", _navigationId);
     }
 
     private void OnRouteMatched(ReadOnlySpan<KeyValuePair<string, object?>> tags)
     {
+        if (_routeMatched)
+        {
+            return;
+        }
         foreach (var tag in tags)
         {
             if (tag.Key != "aspnetcore.components.route" || tag.Value is not string route || string.IsNullOrWhiteSpace(route))
@@ -232,12 +242,12 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             string previous = _currentRoute ?? "[initial]";
             _entryRoute ??= route;
             _currentRoute = route;
+            _routeMatched = true;
             double matched = Stopwatch.GetElapsedTime(_navigationStarted).TotalMilliseconds;
             _pageNavigation = new(_navigationId, route, previous, matched,
                 DateTimeOffset.UtcNow.AddMilliseconds(-matched), Activity.Current?.Context ?? default);
             _pageLoad = new(_pageNavigation);
             InvokeNavigation("panixidaObservability.routeChanged", _navigationId);
-            RouteMatched?.Invoke();
             return;
         }
     }

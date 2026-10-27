@@ -7,8 +7,6 @@ namespace PANiXiDA.Core.Observability.WebAssembly;
 public sealed class PageLoadObserver : ComponentBase, IDisposable
 {
     private BrowserPerformanceTelemetry? _telemetry;
-    private long _renderVersion;
-    private bool _disposed;
 
     /// <summary>Gets or sets whether required page data is still loading.</summary>
     [Parameter]
@@ -25,40 +23,24 @@ public sealed class PageLoadObserver : ComponentBase, IDisposable
     protected override void OnInitialized()
     {
         _telemetry = Services.GetService<BrowserPerformanceTelemetry>();
-        if (_telemetry is not null)
-        {
-            _telemetry.RouteMatched += OnRouteMatched;
-        }
+        _telemetry?.PageObservationRequested += OnPageObservationRequested;
     }
 
     /// <inheritdoc />
     protected override void OnAfterRender(bool firstRender)
     {
-        _renderVersion++;
         _telemetry?.PageRendered(this, IsLoading, HasError);
     }
 
     /// <inheritdoc />
     public void Dispose()
     {
-        _disposed = true;
-        if (_telemetry is not null)
-        {
-            _telemetry.RouteMatched -= OnRouteMatched;
-            _telemetry.PageRemoved(this);
-        }
+        _telemetry?.PageObservationRequested -= OnPageObservationRequested;
+        _telemetry?.PageRemoved(this);
     }
 
-    private void OnRouteMatched()
+    private void OnPageObservationRequested()
     {
-        long version = _renderVersion;
-        _ = InvokeAsync(async () =>
-        {
-            await Task.Yield();
-            if (!_disposed && _renderVersion == version)
-            {
-                StateHasChanged();
-            }
-        });
+        _ = InvokeAsync(StateHasChanged);
     }
 }

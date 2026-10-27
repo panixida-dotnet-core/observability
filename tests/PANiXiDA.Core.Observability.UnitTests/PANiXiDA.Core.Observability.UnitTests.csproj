@@ -16,6 +16,7 @@
         <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
         <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
         <PackageReference Include="xunit.v3" />
+        <PackageReference Include="Yarp.Telemetry.Consumption" />
     </ItemGroup>
 
     <ItemGroup>
@@ -26,5 +27,4 @@
         <Using Include="Xunit" />
         <Using Include="Shouldly" />
     </ItemGroup>
-
 </Project>

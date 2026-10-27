@@ -11,6 +11,8 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
+using PANiXiDA.Core.Observability.Server;
+
 namespace PANiXiDA.Core.Observability;
 
 /// <summary>
@@ -31,6 +33,8 @@ public static class WebApplicationBuilderExtensions
         var serviceVersion = GetServiceVersion(Assembly.GetEntryAssembly());
 
         builder.Services.AddHttpContextAccessor();
+        builder.Services.AddMetrics();
+        builder.Services.AddTelemetryConsumer<YarpForwarderMetrics>();
 
         builder.Services
             .AddOpenTelemetry()
@@ -57,7 +61,7 @@ public static class WebApplicationBuilderExtensions
             .WithMetrics(metricsBuilder =>
             {
                 metricsBuilder
-                    .AddMeter("Wolverine*", "Quartz")
+                    .AddMeter("Wolverine*", "Quartz", YarpForwarderMetrics.MeterName)
                     .AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()

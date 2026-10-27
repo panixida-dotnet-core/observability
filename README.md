@@ -191,6 +191,13 @@ The package does not define a custom `OpenTelemetry:ServiceName` key. If no Open
 
 The package does not hard-code OTLP endpoint, protocol, headers, or timeout values. Configure them through standard OpenTelemetry configuration keys.
 
+### YARP
+
+The server profile uses `Yarp.Telemetry.Consumption` to export
+`yarp.proxy.active_requests` and `yarp.proxy.errors` tagged with the `ForwarderError`
+name as `error.type`. These measure forwarding failures, not HTTP error responses.
+No extra application calls are needed; the WASM dependency graph excludes YARP.
+
 ### Wolverine
 
 `AddObservability()` subscribes to the `Wolverine` activity source and the
@@ -338,7 +345,7 @@ Behavior:
 
 - configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
-- subscribes to Wolverine and Quartz 4.x metrics and traces and YARP traces without dependencies on these libraries;
+- subscribes to Wolverine and Quartz 4.x metrics and traces without dependencies on these libraries, and exports YARP traces and forwarding metrics;
 - adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
 - returns the same `WebApplicationBuilder` instance for chaining.
 

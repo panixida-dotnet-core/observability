@@ -166,7 +166,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             return;
         }
         _pageNavigation = null;
-        if (_pageLoad is { Observer: null })
+        if (_pageLoad!.Observer is null)
         {
             PageObservationRequested?.Invoke();
         }

@@ -111,8 +111,8 @@ function afterWasm() {
     }
     entries.clear();
 
-    requestAnimationFrame(() => requestAnimationFrame(timestamp => {
-        send('RecordStartup', 'first_frame', runtimeReady, timestamp - runtimeReady, performance.timeOrigin);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        send('RecordStartup', 'first_frame', runtimeReady, performance.now() - runtimeReady, performance.timeOrigin);
     }));
 }
 
@@ -155,14 +155,14 @@ globalThis.panixidaObservability = {
         routeReady = true;
         for (const [method, args] of pending.splice(0)) send(method, ...args);
         const matched = performance.now();
-        requestAnimationFrame(() => requestAnimationFrame(timestamp => {
-            if (currentNavigation === id) send('RecordNavigation', id, timestamp - matched);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (currentNavigation === id) send('RecordNavigation', id, performance.now() - matched);
         }));
     },
     pageReady(id, version) {
         const started = performance.now();
-        requestAnimationFrame(() => requestAnimationFrame(timestamp => {
-            if (currentNavigation === id) send('RecordPageReady', id, version, timestamp - started);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (currentNavigation === id) send('RecordPageReady', id, version, performance.now() - started);
         }));
     },
     stop() {

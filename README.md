@@ -158,6 +158,7 @@ It measures a rendering opportunity, not completion of all asynchronous page wor
 `browser.page.http.duration` groups outgoing HTTP timings by their originating
 page route; background telemetry export is suppressed. These browser collectors
 run only in WASM; YARP forwarding metrics belong to the server profile.
+Browser duration histograms use second-scale buckets from 1 ms to 60 s.
 Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.

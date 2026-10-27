@@ -20,6 +20,40 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 [Collection(typeof(BrowserPerformanceTelemetryCollection))]
 public sealed class BrowserPerformanceTelemetryTests
 {
+    [Theory(DisplayName = "Browser duration histograms should distinguish subsecond measurements")]
+    [InlineData("browser.page.navigation.duration")]
+    [InlineData("browser.page.http.duration")]
+    [InlineData("browser.wasm.startup.duration")]
+    public async Task BrowserPerformance_Should_UseSecondScaleHistogramBuckets(string name)
+    {
+        var builder = CreateBuilder(new TestRuntime());
+        var buckets = new ConcurrentDictionary<double, long>();
+        using var exporter = new RecordingExporter<Metric>(metric =>
+        {
+            if (metric.Name != name) return;
+            foreach (ref readonly var point in metric.GetMetricPoints())
+            {
+                foreach (var bucket in point.GetHistogramBuckets())
+                {
+                    buckets[bucket.ExplicitBound] = bucket.BucketCount;
+                }
+            }
+        });
+        using var reader = new BaseExportingMetricReader(exporter);
+        builder.Services.AddOpenTelemetry().WithMetrics(metrics => metrics.AddReader(reader));
+        await using var host = builder.Build();
+        host.UseObservability();
+        using var meter = new Meter(BrowserPerformanceTelemetry.SourceName);
+        meter.CreateHistogram<double>(name, "s").Record(0.2);
+
+        reader.Collect().ShouldBeTrue();
+
+        buckets.ShouldContainKey(0.005);
+        buckets[0.1].ShouldBe(0);
+        buckets[0.25].ShouldBe(1);
+        buckets[double.PositiveInfinity].ShouldBe(0);
+    }
+
     [Fact(DisplayName = "Browser page metrics should discover route templates and preserve document and request attribution across navigations")]
     public async Task BrowserPerformance_Should_AttributePageMetricsToFrameworkRoutes()
     {

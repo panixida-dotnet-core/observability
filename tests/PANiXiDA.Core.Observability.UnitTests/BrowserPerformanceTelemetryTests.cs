@@ -18,11 +18,12 @@ using PANiXiDA.Core.Observability.WebAssembly;
 namespace PANiXiDA.Core.Observability.UnitTests;
 
 [Collection(typeof(BrowserPerformanceTelemetryCollection))]
-public sealed class BrowserPerformanceTelemetryTests
+public sealed partial class BrowserPerformanceTelemetryTests
 {
     [Theory(DisplayName = "Browser duration histograms should distinguish subsecond measurements")]
     [InlineData("browser.page.navigation.duration")]
     [InlineData("browser.page.http.duration")]
+    [InlineData("browser.page.load.duration")]
     [InlineData("browser.wasm.startup.duration")]
     public async Task BrowserPerformance_Should_UseSecondScaleHistogramBuckets(string name)
     {

@@ -10,6 +10,35 @@ let currentNavigation = 0;
 const entries = new Map();
 const pending = [];
 const maximumResources = 2048;
+let errorReceiver;
+let errorWindow = 0;
+let errorCount = 0;
+let errorLimit = 20;
+
+function boundedError(value, limit) {
+    return value.slice(0, limit).replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]*/g, '$1[redacted]');
+}
+
+function reportError(kind, reason, fallback) {
+    if (!errorReceiver) return;
+    const now = performance.now();
+    if (now - errorWindow >= 60000) {
+        errorWindow = now;
+        errorCount = 0;
+    }
+    if (errorCount >= errorLimit) return;
+    errorCount++;
+    try {
+        const message = typeof reason === 'string' ? reason : reason instanceof Error && typeof reason.message === 'string' ? reason.message : fallback;
+        const stack = reason instanceof Error && typeof reason.stack === 'string' ? reason.stack : '';
+        errorReceiver.invokeMethodAsync('RecordError', kind, boundedError(message, 2048), boundedError(stack, 8192)).catch(() => {});
+    } catch {}
+}
+
+const onError = event => {
+    if (typeof event.message === 'string' && event.message) reportError('error', event.error, event.message);
+};
+const onRejection = event => reportError('unhandledrejection', event.reason, 'Unhandled promise rejection');
 
 function send(method, ...args) {
     if (receiver && routeReady) {
@@ -82,6 +111,19 @@ function afterWasm() {
 }
 
 globalThis.panixidaObservability = {
+    startErrors(target, maxPerMinute) {
+        errorReceiver = target;
+        errorLimit = maxPerMinute;
+        errorWindow = performance.now();
+        errorCount = 0;
+        globalThis.addEventListener('error', onError);
+        globalThis.addEventListener('unhandledrejection', onRejection);
+    },
+    stopErrors() {
+        globalThis.removeEventListener('error', onError);
+        globalThis.removeEventListener('unhandledrejection', onRejection);
+        errorReceiver = undefined;
+    },
     start(target) {
         receiver = target;
         if (routeReady) {
@@ -109,6 +151,12 @@ globalThis.panixidaObservability = {
         const matched = performance.now();
         requestAnimationFrame(() => requestAnimationFrame(timestamp => {
             if (currentNavigation === id) send('RecordNavigation', id, timestamp - matched);
+        }));
+    },
+    pageReady(id, version) {
+        const started = performance.now();
+        requestAnimationFrame(() => requestAnimationFrame(timestamp => {
+            if (currentNavigation === id) send('RecordPageReady', id, version, timestamp - started);
         }));
     },
     stop() {

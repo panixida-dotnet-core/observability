@@ -68,7 +68,7 @@ app.Run();
 ```
 
 `service.version` is resolved from `Assembly.GetEntryAssembly()`, which points to the application entry assembly for a normal ASP.NET Core host.
-`deployment.environment` defaults to the lowercase ASP.NET Core environment name;
+`deployment.environment.name` defaults to the lowercase ASP.NET Core environment name;
 `OTEL_RESOURCE_ATTRIBUTES` can override it.
 
 ## Usage

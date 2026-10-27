@@ -25,7 +25,7 @@ public sealed class WebApplicationBuilderExtensionsTests
     [InlineData("Development", null, "development")]
     [InlineData("Production", null, "production")]
     [InlineData("QA-EuWest", null, "qa-euwest")]
-    [InlineData("Development", "deployment.environment=preproduction", "preproduction")]
+    [InlineData("Development", "deployment.environment.name=preproduction", "preproduction")]
     public void AddObservability_Should_ConfigureDeploymentEnvironment_When_HostIsBuilt(
         string environment, string? resourceAttributes, string expected)
     {
@@ -45,7 +45,9 @@ public sealed class WebApplicationBuilderExtensionsTests
             app.Services.GetServices<ILoggerProvider>().OfType<OpenTelemetryLoggerProvider>().Single()
         };
         providers.ShouldAllBe(provider => provider.GetResource().Attributes
-            .Any(attribute => attribute.Key == "deployment.environment" && Equals(attribute.Value, expected)));
+            .Any(attribute => attribute.Key == "deployment.environment.name" && Equals(attribute.Value, expected)));
+        providers.ShouldAllBe(provider => provider.GetResource().Attributes
+            .All(attribute => attribute.Key != "deployment.environment"));
     }
 
     [Fact(DisplayName = "AddObservability returns the same builder instance")]

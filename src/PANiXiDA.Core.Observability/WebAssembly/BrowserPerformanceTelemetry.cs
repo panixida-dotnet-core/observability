@@ -38,6 +38,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
     private PageNavigation? _pageNavigation;
     private DotNetObjectReference<BrowserPerformanceTelemetry>? _reference;
     private IJSInProcessRuntime? _runtime;
+    internal event Action? RouteMatched;
 
     internal void Start(IJSInProcessRuntime runtime, NavigationManager? navigationManager = null)
     {
@@ -236,6 +237,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
                 DateTimeOffset.UtcNow.AddMilliseconds(-matched), Activity.Current?.Context ?? default);
             _pageLoad = new(_pageNavigation);
             InvokeNavigation("panixidaObservability.routeChanged", _navigationId);
+            RouteMatched?.Invoke();
             return;
         }
     }

@@ -114,6 +114,6 @@ internal sealed partial class BrowserJavaScriptErrorTelemetry(
         return UrlQuery().Replace(bounded, "$1[redacted]");
     }
 
-    [GeneratedRegex(@"(https?://[^\s?#]+)[?#][^\s)]*", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(https?://[^\s?#]+)[?#][^\s]*", RegexOptions.CultureInvariant)]
     private static partial Regex UrlQuery();
 }

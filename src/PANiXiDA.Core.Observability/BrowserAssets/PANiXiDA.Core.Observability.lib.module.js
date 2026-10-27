@@ -16,7 +16,7 @@ let errorCount = 0;
 let errorLimit = 20;
 
 function boundedError(value, limit) {
-    return value.slice(0, limit).replace(/(https?:\/\/[^\s?#]+)[?#][^\s)]*/g, '$1[redacted]');
+    return value.slice(0, limit).replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/g, '$1[redacted]');
 }
 
 function reportError(kind, reason, fallback) {
@@ -30,18 +30,19 @@ function reportError(kind, reason, fallback) {
     errorCount++;
     try {
         let message = fallback;
-        if (typeof reason === 'string') {
+        if (typeof reason === 'string' && reason.trim()) {
             message = reason;
-        } else if (reason instanceof Error && typeof reason.message === 'string') {
+        } else if (reason instanceof Error && typeof reason.message === 'string' && reason.message.trim()) {
             message = reason.message;
         }
+        if (!message.trim()) message = 'Uncaught JavaScript error';
         const stack = reason instanceof Error && typeof reason.stack === 'string' ? reason.stack : '';
         errorReceiver.invokeMethodAsync('RecordError', kind, boundedError(message, 2048), boundedError(stack, 8192)).catch(() => {});
     } catch {}
 }
 
 const onError = event => {
-    if (typeof event.message === 'string' && event.message) reportError('error', event.error, event.message);
+    if (typeof event.message === 'string') reportError('error', event.error, event.message);
 };
 const onRejection = event => reportError('unhandledrejection', event.reason, 'Unhandled promise rejection');
 

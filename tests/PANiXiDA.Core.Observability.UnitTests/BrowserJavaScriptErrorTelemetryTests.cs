@@ -73,7 +73,7 @@ public sealed class BrowserJavaScriptErrorTelemetryTests
         matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", 12));
         matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", " "));
         matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/computers/{Id:int}"));
-        collector.RecordError("unhandledrejection", "failed https://api.test/path?token=secret#private", "at https://app.test/script.js?auth=secret:2:1");
+        collector.RecordError("unhandledrejection", "failed https://api.test/path?name=(private)&token=secret#fragment", "at https://app.test/script.js?name=(private)&auth=secret:2:1");
         collector.RecordError("error", "throttled", "");
         clock.Advance(TimeSpan.FromMinutes(1));
         collector.RecordError("error", new string('m', 3000), new string('s', 10000));

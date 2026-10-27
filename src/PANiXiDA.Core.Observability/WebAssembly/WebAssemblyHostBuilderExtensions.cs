@@ -69,10 +69,19 @@ public static class WebAssemblyHostBuilderExtensions
             .WithTracing(tracing => tracing.AddSource("Microsoft.AspNetCore.Components", BrowserPerformanceTelemetry.SourceName)
                 .AddHttpClientInstrumentation()
                 .AddOtlpExporter("traces", configure: null))
-            .WithMetrics(metrics => metrics
-                .AddMeter("Microsoft.AspNetCore.Components", "Microsoft.AspNetCore.Components.Lifecycle", BrowserPerformanceTelemetry.SourceName)
-                .AddHttpClientInstrumentation()
-                .AddOtlpExporter("metrics", configure: null))
+            .WithMetrics(metrics =>
+            {
+                var durations = new ExplicitBucketHistogramConfiguration
+                {
+                    Boundaries = [0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5, 0.75, 1, 2.5, 5, 7.5, 10, 15, 30, 60]
+                };
+                metrics
+                    .AddMeter("Microsoft.AspNetCore.Components", "Microsoft.AspNetCore.Components.Lifecycle", BrowserPerformanceTelemetry.SourceName)
+                    .AddView("browser.page.*.duration", durations)
+                    .AddView("browser.wasm.startup.duration", durations)
+                    .AddHttpClientInstrumentation()
+                    .AddOtlpExporter("metrics", configure: null);
+            })
             .WithLogging(logging => logging.AddOtlpExporter("logs", configureExporter: null), options =>
             {
                 options.IncludeFormattedMessage = true;

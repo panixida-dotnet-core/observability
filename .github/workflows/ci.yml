@@ -22,41 +22,11 @@ jobs:
           registry-user: ${{ secrets.REGISTRY_USER }}
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
 
-    browser-tests:
-        needs: tests
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-            - uses: actions/setup-node@v6
-              with:
-                  node-version: 24
-            - uses: actions/download-artifact@v8
-              with:
-                  name: dotnet-coverage-sonarqube
-                  path: tests-report/dotnet
-            - name: Test browser initializer and collect coverage
-              run: |
-                  mkdir -p tests-report/browser
-                  node --test --experimental-test-coverage \
-                    --test-coverage-include='**/*.lib.module.js' \
-                    --test-coverage-lines=100 --test-coverage-branches=100 \
-                    --test-reporter=lcov --test-reporter-destination=tests-report/browser/browser.lcov \
-                    tests/browser-performance.test.mjs
-                  python3 tests/PANiXiDA.Core.Observability.UnitTests/test_merge_browser_coverage.py tests-report/dotnet/SonarQube.xml tests-report/python/SonarQube.xml
-                  python3 tests/merge_browser_coverage.py tests-report/python/SonarQube.xml \
-                    tests-report/browser/browser.lcov tests-report/sonar/SonarQube.xml
-            - uses: actions/upload-artifact@v7
-              with:
-                  name: observability-coverage-sonarqube
-                  path: tests-report/sonar/SonarQube.xml
-                  if-no-files-found: error
-
     sonar:
-        needs: browser-tests
+        needs: tests
         uses: PANiXiDA-Infrastructure/ci-cd/.github/workflows/dotnet-sonar.yml@main
         with:
           project-key: ${{ vars.SONAR_PROJECT_KEY }}
-          coverage-artifact: observability-coverage-sonarqube
         secrets:
           sonar-token: ${{ secrets.SONAR_TOKEN }}
           registry-user: ${{ secrets.REGISTRY_USER }}

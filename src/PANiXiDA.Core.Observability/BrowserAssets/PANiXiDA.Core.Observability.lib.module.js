@@ -29,7 +29,12 @@ function reportError(kind, reason, fallback) {
     if (errorCount >= errorLimit) return;
     errorCount++;
     try {
-        const message = typeof reason === 'string' ? reason : reason instanceof Error && typeof reason.message === 'string' ? reason.message : fallback;
+        let message = fallback;
+        if (typeof reason === 'string') {
+            message = reason;
+        } else if (reason instanceof Error && typeof reason.message === 'string') {
+            message = reason.message;
+        }
         const stack = reason instanceof Error && typeof reason.stack === 'string' ? reason.stack : '';
         errorReceiver.invokeMethodAsync('RecordError', kind, boundedError(message, 2048), boundedError(stack, 8192)).catch(() => {});
     } catch {}

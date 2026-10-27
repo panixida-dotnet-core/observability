@@ -115,7 +115,7 @@ public sealed partial class BrowserPerformanceTelemetryTests
         using var server = new ServiceCollection().BuildServiceProvider();
         using var renderer = new PageObserverRenderer(browserHost ? host.Services : server);
         int observer = renderer.Mount();
-        await renderer.RenderAsync(observer, false, true);
+        await Should.NotThrowAsync(() => renderer.RenderAsync(observer, false, true));
         renderer.Dispose();
     }
 
@@ -129,7 +129,7 @@ public sealed partial class BrowserPerformanceTelemetryTests
         routes.CreateCounter<long>("aspnetcore.components.navigate")
             .Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/"));
         var observer = new object();
-        collector.PageRendered(observer, false, false);
+        Should.NotThrow(() => collector.PageRendered(observer, false, false));
         collector.PageRemoved(observer);
         collector.PageRemoved(observer);
         routes.CreateCounter<long>("aspnetcore.components.navigation")

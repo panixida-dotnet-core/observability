@@ -102,7 +102,7 @@ public sealed class BrowserJavaScriptErrorTelemetryTests
             Microsoft.Extensions.Options.Options.Create(new BrowserObservabilityOptions()), TimeProvider.System);
         using var collector = new BrowserJavaScriptErrorTelemetry(NullLogger<BrowserJavaScriptErrorTelemetry>.Instance,
             Microsoft.Extensions.Options.Options.Create(new BrowserObservabilityOptions()), TimeProvider.System);
-        collector.Start(new ErrorRuntime { FailStart = failStart, FailStop = failStop });
+        Should.NotThrow(() => collector.Start(new ErrorRuntime { FailStart = failStart, FailStop = failStop }));
         collector.RecordError("error", "failure", "");
     }
 

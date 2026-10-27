@@ -105,6 +105,8 @@ public sealed class BrowserPerformanceTelemetryTests
             collector.RecordVital("LCP", value, "good", "navigate");
         }
         collector.RecordStartup("runtime", double.MaxValue, 1, 1);
+        collector.Start(new TestRuntime());
+        collector.RecordStartup("runtime", 0, 0, 1700000000000);
     }
 
     [Fact(DisplayName = "Browser performance should respect its opt out without invoking JavaScript")]

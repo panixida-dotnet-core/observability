@@ -159,6 +159,17 @@ It measures a rendering opportunity, not completion of all asynchronous page wor
 page route; background telemetry export is suppressed. These browser collectors
 run only in WASM; YARP forwarding metrics belong to the server profile.
 Browser duration histograms use second-scale buckets from 1 ms to 60 s.
+For data-ready timing, put one `<PageLoadObserver IsLoading="@IsLoading" HasError="@HasError" />`
+inside each routed page or its shared component (`PANiXiDA.Core.Observability.WebAssembly`).
+It records `browser.page.load.duration` and a span after data loading and the next
+rendering opportunity, with `browser.page.load.outcome`: `success`, `error`, or
+`cancelled` when leaving an unfinished page. Its histogram count gives outcome
+counts. Pages without an observer have no data-ready measurement.
+Global JavaScript `error` and `unhandledrejection` events produce error logs,
+spans and `browser.javascript.errors`, attributed to the current route template.
+Message/stack sizes and URL query strings are limited/redacted. Configure
+`BrowserTelemetry:JavaScriptErrors:Enabled` (default `true`) and
+`BrowserTelemetry:JavaScriptErrors:MaxPerMinute` (default `20`, range `1..1000`).
 Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.

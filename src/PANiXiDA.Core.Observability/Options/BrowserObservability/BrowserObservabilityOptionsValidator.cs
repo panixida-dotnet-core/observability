@@ -28,6 +28,11 @@ internal sealed class BrowserObservabilityOptionsValidator : IValidateOptions<Br
             failures.Add($"{BrowserObservabilityOptions.MaxRequestSizeBytesKey} must be between {BrowserObservabilityOptions.MinimumRequestSizeBytes} and {BrowserObservabilityOptions.MaximumRequestSizeBytes} bytes.");
         }
 
+        if (options.JavaScriptErrorsEnabled && options.JavaScriptErrorsPerMinute is < 1 or > 1000)
+        {
+            failures.Add($"{BrowserObservabilityOptions.JavaScriptErrorsPerMinuteKey} must be between 1 and 1000.");
+        }
+
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);

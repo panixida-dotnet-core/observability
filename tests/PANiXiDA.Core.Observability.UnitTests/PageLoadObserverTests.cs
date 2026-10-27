@@ -1,0 +1,251 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.RenderTree;
+using Microsoft.AspNetCore.Components.Rendering;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+
+using OpenTelemetry;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+
+using PANiXiDA.Core.Observability.WebAssembly;
+
+#pragma warning disable BL0006
+
+namespace PANiXiDA.Core.Observability.UnitTests;
+
+public sealed partial class BrowserPerformanceTelemetryTests
+{
+    [Fact(DisplayName = "Retained observers should measure synchronous route changes even when loading flags stay unchanged")]
+    public async Task PageLoad_Should_RearmRetainedChildWithUnchangedParameters()
+    {
+        var runtime = new TestRuntime();
+        var navigation = new TestNavigationManager();
+        var builder = CreateBuilder(runtime);
+        builder.Services.AddSingleton<NavigationManager>(navigation);
+        var activities = new ConcurrentBag<Activity>();
+        using var exporter = new RecordingExporter<Activity>(activities.Add);
+        builder.Services.AddOpenTelemetry().WithTracing(tracing =>
+            tracing.AddProcessor(new SimpleActivityExportProcessor(exporter)));
+        await using var host = builder.Build();
+        host.UseObservability();
+        var collector = runtime.Reference.ShouldNotBeNull().Value;
+        using var routes = new Meter("Microsoft.AspNetCore.Components");
+        var matched = routes.CreateCounter<long>("aspnetcore.components.navigate");
+        using var renderer = new PageObserverRenderer(host.Services);
+        int parent = renderer.MountParent();
+        await renderer.NavigateParentAsync(parent, 1, () =>
+            matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/products/{Id:int}")));
+        collector.RecordNavigation(0, 16);
+        collector.RecordPageReady(0, 1, 16);
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/products/{Id:int}"));
+        collector.RecordNavigation(0, 16);
+        collector.RecordPageReady(0, 1, 16);
+
+        await renderer.NavigateParentAsync(parent, 2, () =>
+        {
+            navigation.NavigateTo("https://admin.example.test/products/2");
+            matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/products/{Id:int}"));
+        });
+        collector.RecordNavigation(1, 16);
+        await renderer.DrainAsync();
+        collector.RecordPageReady(1, 1, 16);
+
+        var loads = activities.Where(activity => activity.OperationName == "browser.page.load").ToArray();
+        loads.Length.ShouldBe(2);
+        loads.ShouldAllBe(activity => activity.GetTagItem("browser.page.load.outcome") as string == "success");
+
+        await renderer.NavigateParentAsync(parent, 3, () =>
+        {
+            navigation.NavigateTo("https://admin.example.test/other");
+            matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/other"));
+        }, showObserver: false);
+        collector.RecordNavigation(2, 16);
+        await renderer.DrainAsync();
+        collector.RecordPageReady(2, 1, 16);
+        activities.Count(activity => activity.OperationName == "browser.page.load").ShouldBe(2);
+    }
+
+    [Fact(DisplayName = "Page readiness should wait for data and rendering, report each outcome once, and reject stale callbacks")]
+    public async Task PageLoad_Should_WaitForDataAndRenderAndKeepOutcomes()
+    {
+        var runtime = new TestRuntime();
+        var navigation = new TestNavigationManager();
+        var builder = CreateBuilder(runtime);
+        builder.Services.AddSingleton<NavigationManager>(navigation);
+        var outcomes = new ConcurrentDictionary<string, long>();
+        var durations = new ConcurrentDictionary<string, double>();
+        var activities = new ConcurrentBag<Activity>();
+        using var exporter = new RecordingExporter<Metric>(metric =>
+        {
+            if (metric.Name != "browser.page.load.duration") return;
+            foreach (ref readonly var point in metric.GetMetricPoints())
+            {
+                var tags = new Dictionary<string, object?>();
+                foreach (var tag in point.Tags) tags[tag.Key] = tag.Value;
+                tags["page.route"].ShouldBe("/computers/{Id:int}");
+                string outcome = (string)tags["browser.page.load.outcome"]!;
+                outcomes[outcome] = point.GetHistogramCount();
+                durations[outcome] = point.GetHistogramSum();
+            }
+        });
+        using var reader = new BaseExportingMetricReader(exporter);
+        using var traceExporter = new RecordingExporter<Activity>(activities.Add);
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metrics => metrics.AddReader(reader))
+            .WithTracing(tracing => tracing.AddProcessor(new SimpleActivityExportProcessor(traceExporter)));
+        await using var host = builder.Build();
+        host.UseObservability();
+        var collector = runtime.Reference.ShouldNotBeNull().Value;
+        using var routes = new Meter("Microsoft.AspNetCore.Components");
+        var matched = routes.CreateCounter<long>("aspnetcore.components.navigate");
+        using var renderer = new PageObserverRenderer(host.Services);
+        int observer = renderer.Mount();
+        var otherObserver = new object();
+
+        collector.PageRendered(otherObserver, false, false);
+        collector.PageRemoved(otherObserver);
+        collector.RecordPageReady(0, 1, 1);
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/computers/{Id:int}"));
+        await renderer.RenderAsync(observer, true, false);
+        collector.RecordPageReady(0, 1, 1);
+        reader.Collect().ShouldBeTrue();
+        outcomes.ShouldBeEmpty();
+        await renderer.RenderAsync(observer, false, false);
+        collector.PageRendered(otherObserver, false, false);
+        collector.RecordPageReady(1, 2, 16);
+        collector.RecordPageReady(0, 1, 16);
+        collector.RecordPageReady(0, 2, -1);
+        collector.RecordPageReady(0, 2, double.NaN);
+        collector.RecordPageReady(0, 2, double.MaxValue);
+        collector.RecordPageReady(0, 2, 16);
+        collector.RecordPageReady(0, 2, 16);
+        await renderer.RenderAsync(observer, false, false);
+        collector.PageRemoved(otherObserver);
+
+        await renderer.NavigateObserverAsync(observer, true, true, () =>
+        {
+            navigation.NavigateTo("https://admin.example.test/computers/2");
+            matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/computers/{Id:int}"));
+        });
+        collector.RecordPageReady(1, 1, 16);
+
+        await renderer.NavigateObserverAsync(observer, false, false, () =>
+        {
+            navigation.NavigateTo("https://admin.example.test/computers/3");
+            matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/computers/{Id:int}"));
+        });
+        await renderer.RenderAsync(observer, true, false);
+        collector.RecordPageReady(2, 1, 16);
+        reader.Collect().ShouldBeTrue();
+        outcomes.ShouldNotContainKey("cancelled");
+        collector.RecordPageReady(2, 2, 16);
+        await renderer.NavigateObserverAsync(observer, true, false, () =>
+        {
+            navigation.NavigateTo("https://admin.example.test/computers/4");
+            matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/computers/{Id:int}"));
+        });
+        renderer.Dispose();
+        collector.Dispose();
+        reader.Collect().ShouldBeTrue();
+
+        outcomes["success"].ShouldBe(1);
+        outcomes["error"].ShouldBe(1);
+        outcomes["cancelled"].ShouldBe(2);
+        durations["success"].ShouldBeGreaterThanOrEqualTo(0.016);
+        var loads = activities.Where(activity => activity.OperationName == "browser.page.load").ToArray();
+        loads.Length.ShouldBe(4);
+        loads.Single(activity => activity.GetTagItem("browser.page.load.outcome") as string == "error")
+            .Status.ShouldBe(ActivityStatusCode.Error);
+    }
+
+    [Theory(DisplayName = "Page observer should be harmless without browser performance telemetry")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PageLoad_Should_BeOptional(bool browserHost)
+    {
+        await using var host = CreateBuilder(new TestRuntime(), enabled: false).Build();
+        using var server = new ServiceCollection().BuildServiceProvider();
+        using var renderer = new PageObserverRenderer(browserHost ? host.Services : server);
+        int observer = renderer.Mount();
+        await Should.NotThrowAsync(() => renderer.RenderAsync(observer, false, true));
+        renderer.Dispose();
+    }
+
+    [Fact(DisplayName = "Readiness interop failure should not mark a page as successful")]
+    public async Task PageLoad_Should_TolerateInteropFailureAndDisabledLogging()
+    {
+        var runtime = new TestRuntime { FailRoute = true };
+        var navigation = new TestNavigationManager();
+        using var collector = new BrowserPerformanceTelemetry(NullLogger<BrowserPerformanceTelemetry>.Instance);
+        collector.Start(runtime, navigation);
+        using var routes = new Meter("Microsoft.AspNetCore.Components");
+        routes.CreateCounter<long>("aspnetcore.components.navigate")
+            .Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/"));
+        var observer = new object();
+        Should.NotThrow(() => collector.PageRendered(observer, false, false));
+        collector.PageRemoved(observer);
+        collector.PageRemoved(observer);
+        navigation.NavigateTo("https://admin.example.test/failed");
+        routes.CreateCounter<long>("aspnetcore.components.navigation")
+            .Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/failed"));
+        collector.PageRendered(observer, false, true);
+        collector.RecordPageReady(1, 1, 0);
+        await Task.CompletedTask;
+    }
+
+    private sealed class PageObserverRenderer(IServiceProvider services) : Renderer(services, NullLoggerFactory.Instance)
+    {
+        public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
+        public int Mount() => AssignRootComponentId(InstantiateComponent(typeof(PageLoadObserver)));
+        public int MountParent() => AssignRootComponentId(InstantiateComponent(typeof(RetainedPage)));
+        public Task DrainAsync() => Dispatcher.InvokeAsync(() => { });
+        public Task NavigateObserverAsync(int id, bool loading, bool error, Action matched) => Dispatcher.InvokeAsync(() =>
+        {
+            matched();
+            return RenderAsync(id, loading, error);
+        });
+        public Task NavigateParentAsync(int id, int pageId, Action matched, bool showObserver = true) => Dispatcher.InvokeAsync(() =>
+        {
+            matched();
+            return RenderRootComponentAsync(id, ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                [nameof(RetainedPage.Id)] = pageId,
+                [nameof(RetainedPage.ShowObserver)] = showObserver
+            }));
+        });
+        public Task RenderAsync(int id, bool loading, bool error) => Dispatcher.InvokeAsync(() =>
+            RenderRootComponentAsync(id, ParameterView.FromDictionary(new Dictionary<string, object?>
+            {
+                [nameof(PageLoadObserver.IsLoading)] = loading,
+                [nameof(PageLoadObserver.HasError)] = error
+            })));
+        protected override void HandleException(Exception exception) => throw exception;
+        protected override Task UpdateDisplayAsync(in RenderBatch renderBatch) => Task.CompletedTask;
+    }
+
+    private sealed class RetainedPage : ComponentBase
+    {
+        [Parameter]
+        public int Id { get; set; }
+
+        [Parameter]
+        public bool ShowObserver { get; set; } = true;
+
+        protected override void BuildRenderTree(RenderTreeBuilder builder)
+        {
+            if (!ShowObserver)
+            {
+                return;
+            }
+            builder.OpenComponent<PageLoadObserver>(0);
+            builder.AddAttribute(1, nameof(PageLoadObserver.IsLoading), false);
+            builder.AddAttribute(2, nameof(PageLoadObserver.HasError), false);
+            builder.CloseComponent();
+        }
+    }
+}

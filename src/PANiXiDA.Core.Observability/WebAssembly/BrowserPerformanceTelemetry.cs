@@ -26,6 +26,8 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
     private Counter<double> _decodedSize = null!;
     private Histogram<double> _navigationDuration = null!;
     private Histogram<double> _httpDuration = null!;
+    private Histogram<double> _pageLoadDuration = null!;
+    private PageLoad? _pageLoad;
     private MeterListener? _routes;
     private ActivityListener? _requests;
     private NavigationManager? _navigationManager;
@@ -33,9 +35,11 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
     private string? _currentRoute;
     private long _navigationId;
     private long _navigationStarted;
+    private bool _routeMatched;
     private PageNavigation? _pageNavigation;
     private DotNetObjectReference<BrowserPerformanceTelemetry>? _reference;
     private IJSInProcessRuntime? _runtime;
+    internal event Action? PageObservationRequested;
 
     internal void Start(IJSInProcessRuntime runtime, NavigationManager? navigationManager = null)
     {
@@ -51,6 +55,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         _decodedSize = _meter.CreateCounter<double>("browser.wasm.resource.decoded.size", "By");
         _navigationDuration = _meter.CreateHistogram<double>("browser.page.navigation.duration", "s");
         _httpDuration = _meter.CreateHistogram<double>("browser.page.http.duration", "s");
+        _pageLoadDuration = _meter.CreateHistogram<double>("browser.page.load.duration", "s");
         foreach (string name in new[] { "LCP", "INP", "CLS", "FCP", "TTFB" })
         {
             _meter.CreateObservableGauge<double>("browser.web_vital." + name.ToLowerInvariant(), () => ObserveVital(name), name == "CLS" ? "1" : "s");
@@ -161,6 +166,10 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             return;
         }
         _pageNavigation = null;
+        if (_pageLoad!.Observer is null)
+        {
+            PageObservationRequested?.Invoke();
+        }
         TagList tags =
         [
             new(PageRouteAttribute, page.Route),
@@ -185,6 +194,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
 
     public void Dispose()
     {
+        CancelPageLoad();
         _navigationManager?.LocationChanged -= OnLocationChanged;
         _routes?.Dispose();
         _requests?.Dispose();
@@ -209,14 +219,20 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
     {
+        CancelPageLoad();
         _navigationStarted = Stopwatch.GetTimestamp();
         _navigationId++;
         _pageNavigation = null;
+        _routeMatched = false;
         InvokeNavigation("panixidaObservability.navigationStarted", _navigationId);
     }
 
     private void OnRouteMatched(ReadOnlySpan<KeyValuePair<string, object?>> tags)
     {
+        if (_routeMatched)
+        {
+            return;
+        }
         foreach (var tag in tags)
         {
             if (tag.Key != "aspnetcore.components.route" || tag.Value is not string route || string.IsNullOrWhiteSpace(route))
@@ -226,9 +242,11 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             string previous = _currentRoute ?? "[initial]";
             _entryRoute ??= route;
             _currentRoute = route;
+            _routeMatched = true;
             double matched = Stopwatch.GetElapsedTime(_navigationStarted).TotalMilliseconds;
             _pageNavigation = new(_navigationId, route, previous, matched,
                 DateTimeOffset.UtcNow.AddMilliseconds(-matched), Activity.Current?.Context ?? default);
+            _pageLoad = new(_pageNavigation);
             InvokeNavigation("panixidaObservability.routeChanged", _navigationId);
             return;
         }
@@ -274,6 +292,97 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         {
             logger.LogDebug(exception, "Browser navigation telemetry could not update its route");
         }
+    }
+
+    internal void PageRendered(object observer, bool loading, bool failed)
+    {
+        if (_pageLoad is not { Completed: false } page || (page.Observer is not null && page.Observer != observer))
+        {
+            return;
+        }
+        page.Observer = observer;
+        page.Version++;
+        page.Outcome = null;
+        if (loading && !failed)
+        {
+            return;
+        }
+        page.Outcome = failed ? "error" : "success";
+        page.ReadyDuration = Stopwatch.GetElapsedTime(_navigationStarted).TotalMilliseconds;
+        try
+        {
+            _runtime!.InvokeVoid("panixidaObservability.pageReady", page.Navigation.Id, page.Version);
+        }
+        catch (JSException exception)
+        {
+            logger.LogDebug(exception, "Browser page readiness could not be observed");
+        }
+    }
+
+    internal void PageRemoved(object observer)
+    {
+        if (_pageLoad?.Observer == observer)
+        {
+            CancelPageLoad();
+        }
+    }
+
+    [JSInvokable]
+    public void RecordPageReady(long navigationId, long version, double frameDuration)
+    {
+        if (_pageLoad is not { Completed: false, Outcome: not null } page
+            || page.Navigation.Id != navigationId || page.Version != version || !IsMeasurement(frameDuration))
+        {
+            return;
+        }
+        double duration = page.ReadyDuration + frameDuration;
+        if (duration > (DateTimeOffset.MaxValue - page.Navigation.Started).TotalMilliseconds)
+        {
+            return;
+        }
+        CompletePageLoad(page, page.Outcome, duration);
+    }
+
+    private void CancelPageLoad()
+    {
+        if (_pageLoad is { Completed: false, Observer: not null } page)
+        {
+            CompletePageLoad(page, "cancelled", Stopwatch.GetElapsedTime(_navigationStarted).TotalMilliseconds);
+        }
+    }
+
+    private void CompletePageLoad(PageLoad page, string outcome, double duration)
+    {
+        page.Completed = true;
+        TagList tags =
+        [
+            new(PageRouteAttribute, page.Navigation.Route),
+            new("browser.navigation.type", page.Navigation.Id == 0 ? "initial" : "navigation"),
+            new("browser.page.load.outcome", outcome)
+        ];
+        _pageLoadDuration.Record(duration / 1000, tags);
+        using var activity = _activities.StartActivity("browser.page.load", ActivityKind.Internal,
+            page.Navigation.Context, tags, startTime: page.Navigation.Started);
+        activity?.SetEndTime(page.Navigation.Started.AddMilliseconds(duration).UtcDateTime);
+        if (outcome == "error")
+        {
+            activity?.SetStatus(ActivityStatusCode.Error);
+        }
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Page {PageRoute} load {Outcome} after {DurationMilliseconds} ms",
+                page.Navigation.Route, outcome, duration);
+        }
+    }
+
+    private sealed class PageLoad(PageNavigation navigation)
+    {
+        internal PageNavigation Navigation { get; } = navigation;
+        internal object? Observer { get; set; }
+        internal long Version { get; set; }
+        internal string? Outcome { get; set; }
+        internal double ReadyDuration { get; set; }
+        internal bool Completed { get; set; }
     }
 
     private sealed record PageNavigation(long Id, string Route, string PreviousRoute, double MatchDuration,

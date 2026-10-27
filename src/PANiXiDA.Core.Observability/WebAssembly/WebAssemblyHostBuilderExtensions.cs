@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components.Infrastructure;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.JSInterop;
 
@@ -38,6 +39,7 @@ public static class WebAssemblyHostBuilderExtensions
         {
             host.Services.GetService<BrowserPerformanceTelemetry>()?.Start(runtime,
                 host.Services.GetService<Microsoft.AspNetCore.Components.NavigationManager>());
+            host.Services.GetService<BrowserJavaScriptErrorTelemetry>()?.Start(runtime);
         }
         return host;
     }
@@ -61,6 +63,11 @@ public static class WebAssemblyHostBuilderExtensions
         if (settings.PerformanceEnabled)
         {
             services.AddSingleton<BrowserPerformanceTelemetry>();
+        }
+        if (settings.JavaScriptErrorsEnabled)
+        {
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddSingleton<BrowserJavaScriptErrorTelemetry>();
         }
 
         services.AddOpenTelemetry()

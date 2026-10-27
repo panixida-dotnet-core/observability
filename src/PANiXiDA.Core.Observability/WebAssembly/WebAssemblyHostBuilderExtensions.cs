@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.JSInterop;
 
 using OpenTelemetry;
 using OpenTelemetry.Exporter;
@@ -33,6 +34,11 @@ public static class WebAssemblyHostBuilderExtensions
     public static WebAssemblyHost UseObservability(this WebAssemblyHost host)
     {
         host.Services.GetService<ITelemetryHostInitializer>()?.Initialize();
+        if (host.Services.GetService<IJSRuntime>() is IJSInProcessRuntime runtime)
+        {
+            host.Services.GetService<BrowserPerformanceTelemetry>()?.Start(runtime,
+                host.Services.GetService<Microsoft.AspNetCore.Components.NavigationManager>());
+        }
         return host;
     }
 
@@ -52,14 +58,19 @@ public static class WebAssemblyHostBuilderExtensions
             .Bind(configuration)
             .ValidateOnStart();
 
+        if (settings.PerformanceEnabled)
+        {
+            services.AddSingleton<BrowserPerformanceTelemetry>();
+        }
+
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddDetector(provider =>
                 new BrowserServiceResourceDetector(provider.GetRequiredService<IOptions<BrowserObservabilityOptions>>())))
-            .WithTracing(tracing => tracing.AddSource("Microsoft.AspNetCore.Components")
+            .WithTracing(tracing => tracing.AddSource("Microsoft.AspNetCore.Components", BrowserPerformanceTelemetry.SourceName)
                 .AddHttpClientInstrumentation()
                 .AddOtlpExporter("traces", configure: null))
             .WithMetrics(metrics => metrics
-                .AddMeter("Microsoft.AspNetCore.Components", "Microsoft.AspNetCore.Components.Lifecycle")
+                .AddMeter("Microsoft.AspNetCore.Components", "Microsoft.AspNetCore.Components.Lifecycle", BrowserPerformanceTelemetry.SourceName)
                 .AddHttpClientInstrumentation()
                 .AddOtlpExporter("metrics", configure: null))
             .WithLogging(logging => logging.AddOtlpExporter("logs", configureExporter: null), options =>

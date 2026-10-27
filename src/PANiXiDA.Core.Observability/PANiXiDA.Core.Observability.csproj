@@ -27,6 +27,7 @@
         <PackageReference Include="OpenTelemetry.Instrumentation.Http" ObservabilityHost="Common" PrivateAssets="all" />
         <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" ObservabilityHost="Server" PrivateAssets="all" />
         <PackageReference Include="System.Threading.RateLimiting" ObservabilityHost="Browser" PrivateAssets="all" />
+        <PackageReference Include="Yarp.Telemetry.Consumption" ObservabilityHost="Server" PrivateAssets="all" />
     </ItemGroup>
 
     <ItemGroup>

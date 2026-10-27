@@ -35,6 +35,10 @@
               Pack="true"
               PackagePath="Sdk/Dependencies.props"
               Visible="false" />
+        <None Update="BrowserAssets/**"
+              Pack="true"
+              PackagePath="%(Identity)"
+              Visible="false" />
     </ItemGroup>
 
     <Target Name="GeneratePanixidaObservabilitySdkDependencies"

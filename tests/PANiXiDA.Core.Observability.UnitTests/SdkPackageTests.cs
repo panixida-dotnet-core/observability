@@ -70,13 +70,14 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         var references = document.RootElement.GetProperty("Items").GetProperty("PackageReference").EnumerateArray().ToArray();
         var names = references.Select(reference => reference.GetProperty("Identity").GetString()).ToArray();
         names.Distinct().Count().ShouldBe(names.Length);
-        names.Length.ShouldBe(browser ? 5 : 6);
+        names.Length.ShouldBe(browser ? 5 : 7);
         names.Contains("System.Threading.RateLimiting").ShouldBe(browser);
         names.Contains("Microsoft.AspNetCore.Components.WebAssembly").ShouldBe(browser);
         names.ShouldNotContain("Microsoft.Extensions.Http");
         names.Contains("Npgsql.OpenTelemetry").ShouldBe(!browser);
         names.Contains("OpenTelemetry.Instrumentation.AspNetCore").ShouldBe(!browser);
         names.Contains("OpenTelemetry.Instrumentation.Runtime").ShouldBe(!browser);
+        names.Contains("Yarp.Telemetry.Consumption").ShouldBe(!browser);
         foreach (var reference in references)
         {
             var version = reference.TryGetProperty("Version", out var value) ? value.GetString() : "";
@@ -103,22 +104,27 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
         }
     }
 
-    [Fact(DisplayName = "SDK should compile a real WASM consumer without server assemblies or MVC metadata")]
-    public async Task SdkPackage_Should_CompileWasm_When_ServerRelayIsIncludedInLibrary()
+    [Theory(DisplayName = "SDK should include the browser initializer in WASM clients and Blazor Web App hosts")]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SdkPackage_Should_IncludeBrowserInitializer_When_ConsumedByBlazor(bool browser)
     {
-        var browserDirectory = Path.Combine(fixture.RootDirectory, "browser");
+        string directory = browser ? "browser" : "blazor-host";
+        var browserDirectory = Path.Combine(fixture.RootDirectory, directory);
         Directory.CreateDirectory(browserDirectory);
-        var projectPath = fixture.WriteProject(Path.Combine("browser", "Browser.csproj"), $$"""
-            <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+        var projectPath = fixture.WriteProject(Path.Combine(directory, "Consumer.csproj"), $$"""
+            <Project Sdk="{{(browser ? "Microsoft.NET.Sdk.BlazorWebAssembly" : "Microsoft.NET.Sdk.Web")}}">
               <PropertyGroup>
                 <TargetFramework>net10.0</TargetFramework>
                 <ImplicitUsings>enable</ImplicitUsings>
                 <WasmBuildNative>false</WasmBuildNative>
+                <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
               </PropertyGroup>
+              {{(browser ? "" : "<ItemGroup><PackageReference Include=\"Microsoft.AspNetCore.Components.WebAssembly.Server\" Version=\"10.0.13\" /></ItemGroup>")}}
               {{fixture.Imports}}
             </Project>
             """);
-        await File.WriteAllTextAsync(Path.Combine(browserDirectory, "Program.cs"), """
+        string program = browser ? """
             using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
             using PANiXiDA.Core.Observability.WebAssembly;
             var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -126,12 +132,29 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
             var host = builder.Build();
             host.UseObservability();
             await host.RunAsync();
-            """, TestContext.Current.CancellationToken);
+            """ : """
+            using PANiXiDA.Core.Observability;
+            var builder = WebApplication.CreateBuilder(args);
+            builder.AddObservability();
+            var app = builder.Build();
+            app.MapStaticAssets();
+            app.Run();
+            """;
+        await File.WriteAllTextAsync(Path.Combine(browserDirectory, "Program.cs"), program, TestContext.Current.CancellationToken);
 
         var (exitCode, output) = await SdkPackageFixture.RunAsync(fixture.RootDirectory,
             ["build", projectPath, "--nologo", "-m:1", "-nr:false"]);
 
         exitCode.ShouldBe(0, output);
+
+        using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(browserDirectory, "obj", "Debug", "net10.0", "staticwebassets.build.json"),
+            TestContext.Current.CancellationToken));
+        var assets = manifest.RootElement.GetProperty("Assets").EnumerateArray()
+            .Where(asset => asset.GetProperty("SourceId").GetString() == "PANiXiDA.Core.Observability"
+                && asset.GetProperty("AssetRole").GetString() == "Primary").ToArray();
+        assets.Length.ShouldBe(2);
+        assets.ShouldContain(asset => asset.GetProperty("AssetTraitValue").GetString() == "JSLibraryModule");
     }
     [Theory(DisplayName = "SDK should reject resolved versions below its supported stable dependency version")]
     [InlineData("1.18.0", false)]

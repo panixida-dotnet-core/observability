@@ -24,6 +24,35 @@
         </Reference>
     </ItemGroup>
 
+    <Target Name="ResolvePanixidaObservabilityBrowserAssets"
+            BeforeTargets="UpdateExistingPackageStaticWebAssets"
+            Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true' Or '@(PackageReference->WithMetadataValue('Identity', 'Microsoft.AspNetCore.Components.WebAssembly.Server'))' != ''">
+        <ItemGroup>
+            <_PanixidaObservabilityBrowserAsset Include="$(MSBuildThisFileDirectory)../BrowserAssets/*.js">
+                <RelativePath>%(Filename)%(Extension)</RelativePath>
+            </_PanixidaObservabilityBrowserAsset>
+        </ItemGroup>
+        <DefineStaticWebAssets CandidateAssets="@(_PanixidaObservabilityBrowserAsset)"
+                               SourceType="Package"
+                               SourceId="PANiXiDA.Core.Observability"
+                               ContentRoot="$(MSBuildThisFileDirectory)../BrowserAssets/"
+                               BasePath="_content/PANiXiDA.Core.Observability"
+                               AssetKind="All"
+                               AssetMode="All"
+                               AssetRole="Primary"
+                               CopyToOutputDirectory="Never"
+                               CopyToPublishDirectory="PreserveNewest">
+            <Output TaskParameter="Assets" ItemName="StaticWebAsset" />
+        </DefineStaticWebAssets>
+        <ItemGroup>
+            <StaticWebAsset Update="@(StaticWebAsset)"
+                            Condition="'%(StaticWebAsset.SourceId)' == 'PANiXiDA.Core.Observability' And '%(StaticWebAsset.Filename)' == 'PANiXiDA.Core.Observability.lib.module'">
+                <AssetTraitName>JSModule</AssetTraitName>
+                <AssetTraitValue>JSLibraryModule</AssetTraitValue>
+            </StaticWebAsset>
+        </ItemGroup>
+    </Target>
+
     <Target Name="ValidatePanixidaObservabilitySdkDependencies"
             AfterTargets="ResolvePackageAssets"
             Condition="'@(_PanixidaObservabilitySelectedDependency)' != ''">

@@ -137,6 +137,27 @@ without an endpoint; enabled export requires a nonblank service name. Options
 validation checks the name, HTTP/HTTPS endpoint, and optional request limit.
 A generated `service.instance.id` is shared by all signals for the lifetime of
 each WASM runtime.
+The SDK includes the browser initializer and Google `web-vitals` 6.2.3 locally.
+It records `browser.wasm.startup.duration` by phase (`runtime`,
+`document_to_runtime`, `first_frame`), framework resource counts, accumulated
+request durations and transfer/decoded bytes by resource type. Resource durations
+overlap; their sum is not the total startup time. `first_frame` is the first
+rendering opportunity after runtime startup, not completion of page data loading.
+Web Vitals are latest-value gauges `browser.web_vital.lcp`, `.inp`, `.cls`, `.fcp`
+and `.ttfb` (seconds, except unitless CLS), with startup spans and measurement logs.
+Unsupported browser measurements remain absent. Web Vitals describe document
+lifecycles, not individual Blazor route changes. URLs and resource names are not
+exported. Set `BrowserTelemetry:Performance:Enabled` to `false` to opt out.
+The .NET 10 Blazor router supplies `page.route` from its matched route template,
+including additional assemblies; route names and parameter values are not guessed.
+Web Vitals and startup/resource metrics use the document's entry route.
+`browser.page.navigation.duration` reports `route_match`, `render_frame`, and total
+`first_frame` phases, with `page.route` and navigation type; logs and spans also
+identify the previous route.
+It measures a rendering opportunity, not completion of all asynchronous page work.
+`browser.page.http.duration` groups outgoing HTTP timings by their originating
+page route; background telemetry export is suppressed. These browser collectors
+run only in WASM; YARP forwarding metrics belong to the server profile.
 Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.
@@ -179,6 +200,13 @@ The package does not define a custom `OpenTelemetry:ServiceName` key. If no Open
 ### OTLP Exporter
 
 The package does not hard-code OTLP endpoint, protocol, headers, or timeout values. Configure them through standard OpenTelemetry configuration keys.
+
+### YARP
+
+The server profile uses `Yarp.Telemetry.Consumption` to export
+`yarp.proxy.active_requests` and `yarp.proxy.errors` tagged with the `ForwarderError`
+name as `error.type`. These measure forwarding failures, not HTTP error responses.
+No extra application calls are needed; the WASM dependency graph excludes YARP.
 
 ### Wolverine
 
@@ -327,7 +355,7 @@ Behavior:
 
 - configures OpenTelemetry resource metadata using the entry assembly version when available;
 - adds ASP.NET Core, HTTP client, Npgsql, and runtime instrumentation;
-- subscribes to Wolverine and Quartz 4.x metrics and traces and YARP traces without dependencies on these libraries;
+- subscribes to Wolverine and Quartz 4.x metrics and traces without dependencies on these libraries, and exports YARP traces and forwarding metrics;
 - adds the OTLP exporter for logging, metrics, and tracing through OpenTelemetry `UseOtlpExporter`;
 - returns the same `WebApplicationBuilder` instance for chaining.
 

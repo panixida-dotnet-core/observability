@@ -42,7 +42,7 @@ jobs:
                     --test-coverage-lines=100 --test-coverage-branches=100 \
                     --test-reporter=lcov --test-reporter-destination=tests-report/browser/browser.lcov \
                     tests/browser-performance.test.mjs
-                  python3 tests/test_merge_browser_coverage.py tests-report/dotnet/SonarQube.xml tests-report/python/SonarQube.xml
+                  python3 tests/PANiXiDA.Core.Observability.UnitTests/test_merge_browser_coverage.py tests-report/dotnet/SonarQube.xml tests-report/python/SonarQube.xml
                   python3 tests/merge_browser_coverage.py tests-report/python/SonarQube.xml \
                     tests-report/browser/browser.lcov tests-report/sonar/SonarQube.xml
             - uses: actions/upload-artifact@v7

@@ -11,7 +11,7 @@ from unittest.mock import patch
 from xml.etree import ElementTree
 
 
-SCRIPT = Path(__file__).with_name("merge_browser_coverage.py").resolve()
+SCRIPT = Path(__file__).resolve().parent.parent / "merge_browser_coverage.py"
 COUNTS = {}
 
 

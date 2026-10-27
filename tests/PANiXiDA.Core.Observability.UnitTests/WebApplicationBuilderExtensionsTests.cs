@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 using OpenTelemetry;
@@ -19,6 +20,35 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 public sealed class WebApplicationBuilderExtensionsTests
 {
     private const string OtelServiceNameEnvironmentVariableName = "OTEL_SERVICE_NAME";
+
+    [Theory(DisplayName = "Server telemetry should use the host environment unless resource configuration overrides it")]
+    [InlineData("Development", null, "development")]
+    [InlineData("Production", null, "production")]
+    [InlineData("QA-EuWest", null, "qa-euwest")]
+    [InlineData("Development", "deployment.environment.name=preproduction", "preproduction")]
+    public void AddObservability_Should_ConfigureDeploymentEnvironment_When_HostIsBuilt(
+        string environment, string? resourceAttributes, string expected)
+    {
+        var builder = CreateBuilder(environment);
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["OTEL_RESOURCE_ATTRIBUTES"] = resourceAttributes
+        });
+
+        builder.AddObservability();
+        using var app = builder.Build();
+
+        var providers = new BaseProvider[]
+        {
+            app.Services.GetRequiredService<TracerProvider>(),
+            app.Services.GetRequiredService<MeterProvider>(),
+            app.Services.GetServices<ILoggerProvider>().OfType<OpenTelemetryLoggerProvider>().Single()
+        };
+        providers.ShouldAllBe(provider => provider.GetResource().Attributes
+            .Any(attribute => attribute.Key == "deployment.environment.name" && Equals(attribute.Value, expected)));
+        providers.ShouldAllBe(provider => provider.GetResource().Attributes
+            .All(attribute => attribute.Key != "deployment.environment"));
+    }
 
     [Fact(DisplayName = "AddObservability returns the same builder instance")]
     public void AddObservability_ShouldReturnSameBuilder()
@@ -177,13 +207,13 @@ public sealed class WebApplicationBuilderExtensionsTests
             OtlpExportProtocol.Grpc);
     }
 
-    private static WebApplicationBuilder CreateBuilder()
+    private static WebApplicationBuilder CreateBuilder(string environment = "Testing")
     {
         return WebApplication.CreateBuilder(
             new WebApplicationOptions
             {
                 ApplicationName = "Fallback.Service",
-                EnvironmentName = "Testing"
+                EnvironmentName = environment
             });
     }
 

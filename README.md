@@ -68,6 +68,8 @@ app.Run();
 ```
 
 `service.version` is resolved from `Assembly.GetEntryAssembly()`, which points to the application entry assembly for a normal ASP.NET Core host.
+`deployment.environment.name` defaults to the lowercase ASP.NET Core environment name;
+`OTEL_RESOURCE_ATTRIBUTES` can override it.
 
 ## Usage
 
@@ -133,6 +135,8 @@ Configure public `wwwroot/appsettings.json`:
 The client collects Blazor/HTTP telemetry and application logs. Export is disabled
 without an endpoint; enabled export requires a nonblank service name. Options
 validation checks the name, HTTP/HTTPS endpoint, and optional request limit.
+A generated `service.instance.id` is shared by all signals for the lifetime of
+each WASM runtime.
 Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.

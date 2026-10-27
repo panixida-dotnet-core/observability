@@ -18,6 +18,8 @@ namespace PANiXiDA.Core.Observability;
 /// </summary>
 public static class WebApplicationBuilderExtensions
 {
+    private const string DeploymentEnvironmentNameAttribute = "deployment.environment.name";
+
     /// <summary>
     /// Adds OpenTelemetry logging, metrics, and tracing configured for a PANiXiDA host.
     /// </summary>
@@ -39,6 +41,8 @@ public static class WebApplicationBuilderExtensions
                         serviceName: builder.Environment.ApplicationName,
                         serviceVersion: serviceVersion,
                         serviceInstanceId: Environment.MachineName)
+                    .AddAttributes([new KeyValuePair<string, object>(
+                        DeploymentEnvironmentNameAttribute, builder.Environment.EnvironmentName.ToLowerInvariant())])
                     .AddEnvironmentVariableDetector()
                     .AddTelemetrySdk();
             })

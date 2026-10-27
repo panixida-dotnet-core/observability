@@ -132,6 +132,15 @@ public sealed class SdkPackageTests(SdkPackageFixture fixture) : IClassFixture<S
             ["build", projectPath, "--nologo", "-m:1", "-nr:false"]);
 
         exitCode.ShouldBe(0, output);
+
+        using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(
+            Path.Combine(browserDirectory, "obj", "Debug", "net10.0", "staticwebassets.build.json"),
+            TestContext.Current.CancellationToken));
+        var assets = manifest.RootElement.GetProperty("Assets").EnumerateArray()
+            .Where(asset => asset.GetProperty("SourceId").GetString() == "PANiXiDA.Core.Observability"
+                && asset.GetProperty("AssetRole").GetString() == "Primary").ToArray();
+        assets.Length.ShouldBe(2);
+        assets.ShouldContain(asset => asset.GetProperty("AssetTraitValue").GetString() == "JSLibraryModule");
     }
     [Theory(DisplayName = "SDK should reject resolved versions below its supported stable dependency version")]
     [InlineData("1.18.0", false)]

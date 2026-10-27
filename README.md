@@ -137,6 +137,17 @@ without an endpoint; enabled export requires a nonblank service name. Options
 validation checks the name, HTTP/HTTPS endpoint, and optional request limit.
 A generated `service.instance.id` is shared by all signals for the lifetime of
 each WASM runtime.
+The SDK includes the browser initializer and Google `web-vitals` 6.2.3 locally.
+It records `browser.wasm.startup.duration` by phase (`runtime`,
+`document_to_runtime`, `first_frame`), framework resource counts, accumulated
+request durations and transfer/decoded bytes by resource type. Resource durations
+overlap; their sum is not the total startup time. `first_frame` is the first
+rendering opportunity after runtime startup, not completion of page data loading.
+Web Vitals are latest-value gauges `browser.web_vital.lcp`, `.inp`, `.cls`, `.fcp`
+and `.ttfb` (seconds, except unitless CLS), with startup spans and measurement logs.
+Unsupported browser measurements remain absent. Web Vitals describe document
+lifecycles, not individual Blazor route changes. URLs and resource names are not
+exported. Set `BrowserTelemetry:Performance:Enabled` to `false` to opt out.
 Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.

@@ -15,6 +15,7 @@ using PANiXiDA.Core.Observability.WebAssembly;
 
 namespace PANiXiDA.Core.Observability.UnitTests;
 
+[Collection(typeof(BrowserPerformanceTelemetryCollection))]
 public sealed class BrowserPerformanceTelemetryTests
 {
     [Fact(DisplayName = "Browser performance should export startup spans resources and latest Web Vitals through the configured providers")]
@@ -186,3 +187,6 @@ public sealed class BrowserPerformanceTelemetryTests
         }
     }
 }
+
+[CollectionDefinition(DisableParallelization = true)]
+public sealed class BrowserPerformanceTelemetryCollection;

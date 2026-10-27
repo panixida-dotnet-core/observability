@@ -26,7 +26,7 @@
 
     <Target Name="ResolvePanixidaObservabilityBrowserAssets"
             BeforeTargets="UpdateExistingPackageStaticWebAssets"
-            Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true'">
+            Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true' Or '@(PackageReference->WithMetadataValue('Identity', 'Microsoft.AspNetCore.Components.WebAssembly.Server'))' != ''">
         <ItemGroup>
             <_PanixidaObservabilityBrowserAsset Include="$(MSBuildThisFileDirectory)../BrowserAssets/*.js">
                 <RelativePath>%(Filename)%(Extension)</RelativePath>

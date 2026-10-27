@@ -83,7 +83,7 @@ public sealed class BrowserPerformanceTelemetryTests
         var runtimeActivity = activities.Single(activity => activity.OperationName == "wasm.startup.runtime");
         runtimeActivity.StartTimeUtc.ShouldBe(DateTimeOffset.FromUnixTimeMilliseconds(1700000000100).UtcDateTime);
         runtimeActivity.Duration.ShouldBe(TimeSpan.FromMilliseconds(200));
-        logs.Count(message => message.StartsWith("Web Vital LCP", StringComparison.Ordinal)).ShouldBe(2);
+        logs.Count(message => message.StartsWith("Web Vital LCP", StringComparison.Ordinal)).ShouldBe(3);
     }
 
     [Fact(DisplayName = "Browser performance should ignore malformed and unsupported measurements")]

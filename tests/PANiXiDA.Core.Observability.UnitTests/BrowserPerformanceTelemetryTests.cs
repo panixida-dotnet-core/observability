@@ -90,6 +90,7 @@ public sealed class BrowserPerformanceTelemetryTests
     public void BrowserPerformance_Should_IgnoreInvalidMeasurements()
     {
         using var factory = LoggerFactory.Create(_ => { });
+        using var unstarted = new BrowserPerformanceTelemetry(factory.CreateLogger<BrowserPerformanceTelemetry>());
         using var collector = new BrowserPerformanceTelemetry(factory.CreateLogger<BrowserPerformanceTelemetry>());
         collector.RecordStartup("unknown", 0, 1, 1);
         collector.RecordResources("unknown", 1, 1, 1, 1);

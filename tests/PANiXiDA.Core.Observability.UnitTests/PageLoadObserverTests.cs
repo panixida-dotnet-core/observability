@@ -132,6 +132,10 @@ public sealed partial class BrowserPerformanceTelemetryTests
         collector.PageRendered(observer, false, false);
         collector.PageRemoved(observer);
         collector.PageRemoved(observer);
+        routes.CreateCounter<long>("aspnetcore.components.navigation")
+            .Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/failed"));
+        collector.PageRendered(observer, false, true);
+        collector.RecordPageReady(0, 1, 0);
         await Task.CompletedTask;
     }
 

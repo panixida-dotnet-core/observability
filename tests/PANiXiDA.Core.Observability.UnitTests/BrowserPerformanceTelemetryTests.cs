@@ -92,7 +92,7 @@ public sealed class BrowserPerformanceTelemetryTests
         using var factory = LoggerFactory.Create(_ => { });
         using var unstarted = new BrowserPerformanceTelemetry(factory.CreateLogger<BrowserPerformanceTelemetry>());
         using var collector = new BrowserPerformanceTelemetry(factory.CreateLogger<BrowserPerformanceTelemetry>());
-        collector.RecordStartup("unknown", 0, 1, 1);
+        Should.NotThrow(() => collector.RecordStartup("unknown", 0, 1, 1));
         collector.RecordResources("unknown", 1, 1, 1, 1);
         collector.RecordVital("unknown", 1, "good", "navigate");
         foreach (double value in new[] { -1, double.NaN, double.PositiveInfinity, double.NegativeInfinity })

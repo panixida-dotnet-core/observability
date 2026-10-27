@@ -94,7 +94,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         }
 
         double measurement = name == "CLS" ? value : value / 1000;
-        if (_vitals.TryGetValue(name, out double previous) && previous == measurement)
+        if (_vitals.TryGetValue(name, out double previous) && previous.Equals(measurement))
         {
             return;
         }

@@ -26,4 +26,8 @@
         <Using Include="Xunit" />
         <Using Include="Shouldly" />
     </ItemGroup>
+
+    <ItemGroup>
+        <None Include="../browser-performance.test.mjs;../test_merge_browser_coverage.py" />
+    </ItemGroup>
 </Project>

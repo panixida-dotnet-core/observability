@@ -40,10 +40,10 @@ function beforeWasm() {
 
 function resourceKind(name) {
     const path = new URL(name, document.baseURI).pathname;
-    if (/\.wasm$/.test(path)) return 'wasm';
+    if (path.endsWith('.wasm')) return 'wasm';
     if (/\.(dll|dat)$/.test(path)) return 'assembly';
-    if (/\.js$/.test(path)) return 'javascript';
-    if (/\.json$/.test(path)) return 'configuration';
+    if (path.endsWith('.js')) return 'javascript';
+    if (path.endsWith('.json')) return 'configuration';
     return 'other';
 }
 

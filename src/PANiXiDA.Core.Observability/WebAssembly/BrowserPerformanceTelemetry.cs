@@ -66,7 +66,10 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         using var activity = _activities.StartActivity("wasm.startup." + phase, ActivityKind.Internal,
             default(ActivityContext), tags, startTime: startTime);
         activity?.SetEndTime(startTime.AddMilliseconds(duration).UtcDateTime);
-        logger.LogInformation("WASM {Phase} completed in {DurationMilliseconds} ms", phase, duration);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("WASM {Phase} completed in {DurationMilliseconds} ms", phase, duration);
+        }
     }
 
     [JSInvokable]
@@ -100,7 +103,10 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         }
 
         _vitals[name] = measurement;
-        logger.LogInformation("Web Vital {MetricName}: {Value} ({Rating}, {NavigationType})", name, measurement, rating, navigationType);
+        if (logger.IsEnabled(LogLevel.Information))
+        {
+            logger.LogInformation("Web Vital {MetricName}: {Value} ({Rating}, {NavigationType})", name, measurement, rating, navigationType);
+        }
     }
 
     public void Dispose()

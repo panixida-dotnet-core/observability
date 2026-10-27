@@ -36,7 +36,8 @@ public static class WebAssemblyHostBuilderExtensions
         host.Services.GetService<ITelemetryHostInitializer>()?.Initialize();
         if (host.Services.GetService<IJSRuntime>() is IJSInProcessRuntime runtime)
         {
-            host.Services.GetService<BrowserPerformanceTelemetry>()?.Start(runtime);
+            host.Services.GetService<BrowserPerformanceTelemetry>()?.Start(runtime,
+                host.Services.GetService<Microsoft.AspNetCore.Components.NavigationManager>());
         }
         return host;
     }

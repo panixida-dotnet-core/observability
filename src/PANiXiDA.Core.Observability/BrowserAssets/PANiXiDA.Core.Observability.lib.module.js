@@ -5,14 +5,16 @@ let initialized = false;
 let wasmStarted;
 let runtimeReady;
 let resources;
+let routeReady = false;
+let currentNavigation = 0;
 const entries = new Map();
 const pending = [];
 const maximumResources = 2048;
 
 function send(method, ...args) {
-    if (receiver) {
+    if (receiver && routeReady) {
         receiver.invokeMethodAsync(method, ...args).catch(() => {});
-    } else if (!initialized && pending.length < 16) {
+    } else if ((!initialized || !routeReady) && pending.length < 16) {
         pending.push([method, args]);
     }
 }
@@ -82,7 +84,9 @@ function afterWasm() {
 globalThis.panixidaObservability = {
     start(target) {
         receiver = target;
-        for (const [method, args] of pending.splice(0)) send(method, ...args);
+        if (routeReady) {
+            for (const [method, args] of pending.splice(0)) send(method, ...args);
+        }
         if (initialized) return;
         initialized = true;
         const report = metric => {
@@ -95,7 +99,20 @@ globalThis.panixidaObservability = {
         onLCP(report, options);
         onTTFB(report, options);
     },
+    navigationStarted(id) {
+        currentNavigation = id;
+    },
+    routeChanged(id) {
+        currentNavigation = id;
+        routeReady = true;
+        for (const [method, args] of pending.splice(0)) send(method, ...args);
+        const matched = performance.now();
+        requestAnimationFrame(() => requestAnimationFrame(timestamp => {
+            if (currentNavigation === id) send('RecordNavigation', id, timestamp - matched);
+        }));
+    },
     stop() {
+        currentNavigation++;
         receiver = undefined;
         resources?.disconnect();
         entries.clear();

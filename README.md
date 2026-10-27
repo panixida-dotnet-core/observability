@@ -148,6 +148,16 @@ and `.ttfb` (seconds, except unitless CLS), with startup spans and measurement l
 Unsupported browser measurements remain absent. Web Vitals describe document
 lifecycles, not individual Blazor route changes. URLs and resource names are not
 exported. Set `BrowserTelemetry:Performance:Enabled` to `false` to opt out.
+The .NET 10 Blazor router supplies `page.route` from its matched route template,
+including additional assemblies; route names and parameter values are not guessed.
+Web Vitals and startup/resource metrics use the document's entry route.
+`browser.page.navigation.duration` reports `route_match`, `render_frame`, and total
+`first_frame` phases, with `page.route` and navigation type; logs and spans also
+identify the previous route.
+It measures a rendering opportunity, not completion of all asynchronous page work.
+`browser.page.http.duration` groups outgoing HTTP timings by their originating
+page route; background telemetry export is suppressed. These browser collectors
+run only in WASM; YARP forwarding metrics belong to the server profile.
 Relative endpoints use the app base address. A BFF can forward the `v1/logs`,
 `v1/metrics`, and `v1/traces` requests to a collector. Match the limit with the
 BFF/collector limits and keep collector credentials on the server.

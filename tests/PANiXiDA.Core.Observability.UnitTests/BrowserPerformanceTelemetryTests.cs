@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,6 +20,124 @@ namespace PANiXiDA.Core.Observability.UnitTests;
 [Collection(typeof(BrowserPerformanceTelemetryCollection))]
 public sealed class BrowserPerformanceTelemetryTests
 {
+    [Fact(DisplayName = "Browser page metrics should discover route templates and preserve document and request attribution across navigations")]
+    public async Task BrowserPerformance_Should_AttributePageMetricsToFrameworkRoutes()
+    {
+        var runtime = new TestRuntime();
+        var navigation = new TestNavigationManager();
+        var builder = CreateBuilder(runtime);
+        builder.Services.AddSingleton<NavigationManager>(navigation);
+        var measurements = new ConcurrentDictionary<(string Metric, string Route, string Phase), double>();
+        var activities = new ConcurrentBag<Activity>();
+        using var exporter = new RecordingExporter<Metric>(metric =>
+        {
+            if (!metric.Name.StartsWith("browser.", StringComparison.Ordinal)) return;
+            foreach (ref readonly var point in metric.GetMetricPoints())
+            {
+                var tags = new Dictionary<string, object?>();
+                foreach (var tag in point.Tags) tags[tag.Key] = tag.Value;
+                string route = tags.GetValueOrDefault("page.route") as string ?? "";
+                string phase = tags.GetValueOrDefault("browser.navigation.phase") as string ?? "";
+                measurements[(metric.Name, route, phase)] = metric.MetricType == MetricType.Histogram
+                    ? point.GetHistogramSum() : point.GetGaugeLastValueDouble();
+            }
+        });
+        using var reader = new BaseExportingMetricReader(exporter);
+        using var traceExporter = new RecordingExporter<Activity>(activities.Add);
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metrics => metrics.AddReader(reader))
+            .WithTracing(tracing => tracing.AddProcessor(new SimpleActivityExportProcessor(traceExporter)));
+        await using var host = builder.Build();
+        host.UseObservability();
+        var collector = runtime.Reference.ShouldNotBeNull().Value;
+        using var routes = new Meter("Microsoft.AspNetCore.Components");
+        var matched = routes.CreateCounter<long>("aspnetcore.components.navigate");
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/units"));
+        collector.RecordNavigation(0, 16);
+        collector.RecordNavigation(0, 16);
+        collector.RecordVital("LCP", 200, "good", "navigate");
+        using var http = new ActivitySource("System.Net.Http");
+        var oldRequest = http.StartActivity("System.Net.Http.HttpRequestOut").ShouldNotBeNull();
+        navigation.NavigateTo("https://admin.example.test/computers/123?secret=value");
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/computers/{id:int}"));
+        collector.RecordNavigation(0, 20);
+        collector.RecordNavigation(1, -1);
+        collector.RecordNavigation(1, double.NaN);
+        collector.RecordNavigation(1, double.MaxValue);
+        collector.RecordNavigation(1, 32);
+        oldRequest.Stop();
+        using (var request = http.StartActivity("System.Net.Http.HttpRequestOut"))
+        {
+            request.ShouldNotBeNull().GetTagItem("page.route").ShouldBe("/computers/{id:int}");
+        }
+        collector.RecordVital("INP", 50, "good", "navigate");
+        reader.Collect().ShouldBeTrue();
+
+        measurements[("browser.web_vital.lcp", "/units", "")].ShouldBe(0.2);
+        measurements[("browser.web_vital.inp", "/units", "")].ShouldBe(0.05);
+        measurements[("browser.page.navigation.duration", "/units", "first_frame")].ShouldBeGreaterThanOrEqualTo(0.016);
+        measurements[("browser.page.navigation.duration", "/computers/{id:int}", "render_frame")].ShouldBe(0.032);
+        measurements[("browser.page.http.duration", "/units", "")].ShouldBeGreaterThanOrEqualTo(0);
+        measurements[("browser.page.http.duration", "/computers/{id:int}", "")].ShouldBeGreaterThanOrEqualTo(0);
+        activities.Count(activity => activity.OperationName == "browser.page.navigation").ShouldBe(2);
+        measurements.Keys.ShouldNotContain(key => key.Route.Contains("123", StringComparison.Ordinal) || key.Route.Contains("secret", StringComparison.Ordinal));
+    }
+
+    [Fact(DisplayName = "Browser page metrics should retain parent route attribution and ignore telemetry export requests")]
+    public async Task BrowserPerformance_Should_IgnoreSuppressedRequestsAndUseParentRoutes()
+    {
+        var runtime = new TestRuntime();
+        var builder = CreateBuilder(runtime);
+        await using var host = builder.Build();
+        host.UseObservability();
+        var collector = runtime.Reference.ShouldNotBeNull().Value;
+        using var http = new ActivitySource("System.Net.Http");
+        using (var noPage = http.StartActivity("System.Net.Http.HttpRequestOut"))
+        {
+            noPage.ShouldNotBeNull().GetTagItem("page.route").ShouldBeNull();
+        }
+        using (SuppressInstrumentationScope.Begin())
+        {
+            http.StartActivity("export").ShouldBeNull();
+            using var otherListener = new ActivityListener
+            {
+                ShouldListenTo = source => source.Name == "System.Net.Http",
+                Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData
+            };
+            ActivitySource.AddActivityListener(otherListener);
+            using var suppressed = http.StartActivity("export observed by another subscriber");
+            suppressed.ShouldNotBeNull().GetTagItem("page.route").ShouldBeNull();
+        }
+        using var routes = new Meter("Microsoft.AspNetCore.Components");
+        var matched = routes.CreateCounter<long>("aspnetcore.components.navigation");
+        routes.CreateCounter<long>("unrelated").Add(1);
+        matched.Add(1, new KeyValuePair<string, object?>("other", "/private/123"));
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", 123));
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", " "));
+        collector.RecordNavigation(0, 1);
+        using var parent = new Activity("older page").SetTag("aspnetcore.components.route", "/older/{id}").Start();
+        using var intermediate = new Activity("work").Start();
+        using var request = http.StartActivity("System.Net.Http.HttpRequestOut");
+        request.ShouldNotBeNull().GetTagItem("page.route").ShouldBe("/older/{id}");
+        matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/newer"));
+        collector.RecordNavigation(0, 1);
+    }
+
+    [Fact(DisplayName = "Browser page telemetry should tolerate JavaScript route update failures")]
+    public async Task BrowserPerformance_Should_TolerateRouteUpdateFailure()
+    {
+        var runtime = new TestRuntime { FailRoute = true };
+        var builder = CreateBuilder(runtime);
+        var navigation = new TestNavigationManager();
+        builder.Services.AddSingleton<NavigationManager>(navigation);
+        await using var host = builder.Build();
+        host.UseObservability();
+        Should.NotThrow(() => navigation.NavigateTo("https://admin.example.test/units"));
+        using var routes = new Meter("Microsoft.AspNetCore.Components");
+        var matched = routes.CreateCounter<long>("aspnetcore.components.navigate");
+        Should.NotThrow(() => matched.Add(1, new KeyValuePair<string, object?>("aspnetcore.components.route", "/units")));
+    }
+
     [Fact(DisplayName = "Browser performance should export startup spans resources and latest Web Vitals through the configured providers")]
     public async Task BrowserPerformance_Should_ExportMeasurements_When_Connected()
     {
@@ -159,6 +279,7 @@ public sealed class BrowserPerformanceTelemetryTests
         public int Starts { get; private set; }
         public bool FailStart { get; init; }
         public bool FailStop { get; init; }
+        public bool FailRoute { get; init; }
         public DotNetObjectReference<BrowserPerformanceTelemetry>? Reference { get; private set; }
 
         public TValue Invoke<TValue>(string identifier, params object?[]? args)
@@ -169,15 +290,30 @@ public sealed class BrowserPerformanceTelemetryTests
                 Reference = (DotNetObjectReference<BrowserPerformanceTelemetry>)args![0]!;
                 if (FailStart) throw new JSException("start unavailable");
             }
-            else if (FailStop)
+            else if (FailStop && identifier == "panixidaObservability.stop")
             {
                 throw new JSException("stop unavailable");
+            }
+            else if (FailRoute)
+            {
+                throw new JSException("route update unavailable");
             }
             return default!;
         }
 
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) => throw new NotSupportedException();
         public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) => throw new NotSupportedException();
+    }
+
+    private sealed class TestNavigationManager : NavigationManager
+    {
+        public TestNavigationManager() => Initialize("https://admin.example.test/", "https://admin.example.test/units");
+
+        protected override void NavigateToCore(string uri, bool forceLoad)
+        {
+            Uri = uri;
+            NotifyLocationChanged(false);
+        }
     }
 
     private sealed class RecordingExporter<T>(Action<T> record) : BaseExporter<T> where T : class

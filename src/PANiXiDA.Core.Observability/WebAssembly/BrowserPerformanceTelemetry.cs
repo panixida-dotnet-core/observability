@@ -14,6 +14,8 @@ namespace PANiXiDA.Core.Observability.WebAssembly;
 internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTelemetry> logger) : IDisposable
 {
     internal const string SourceName = "PANiXiDA.Core.Observability.Browser";
+    private const string PageRouteAttribute = "page.route";
+    private const string UnmatchedRoute = "[unmatched]";
     private readonly Meter _meter = new(SourceName);
     private readonly ActivitySource _activities = new(SourceName);
     private readonly ConcurrentDictionary<string, double> _vitals = new(StringComparer.Ordinal);
@@ -61,10 +63,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             runtime.InvokeVoid("panixidaObservability.start", _reference);
             _navigationStarted = Stopwatch.GetTimestamp();
             _navigationManager = navigationManager;
-            if (_navigationManager is not null)
-            {
-                _navigationManager.LocationChanged += OnLocationChanged;
-            }
+            _navigationManager?.LocationChanged += OnLocationChanged;
             _routes = new MeterListener
             {
                 InstrumentPublished = (instrument, listener) =>
@@ -104,7 +103,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             return;
         }
 
-        var tags = new TagList { { "browser.wasm.phase", phase }, { "page.route", _entryRoute ?? "[unmatched]" } };
+        var tags = new TagList { { "browser.wasm.phase", phase }, { PageRouteAttribute, _entryRoute ?? UnmatchedRoute } };
         _startup.Record(duration / 1000, tags);
         var startTime = DateTimeOffset.FromUnixTimeMilliseconds((long)(timeOrigin + started));
         using var activity = _activities.StartActivity("wasm.startup." + phase, ActivityKind.Internal,
@@ -125,7 +124,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             return;
         }
 
-        var tags = new TagList { { "browser.resource.type", kind }, { "page.route", _entryRoute ?? "[unmatched]" } };
+        var tags = new TagList { { "browser.resource.type", kind }, { PageRouteAttribute, _entryRoute ?? UnmatchedRoute } };
         _resourceCount.Add(count, tags);
         _resourceDuration.Add(duration / 1000, tags);
         _transferSize.Add(transferred, tags);
@@ -145,7 +144,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         if (logger.IsEnabled(LogLevel.Information))
         {
             logger.LogInformation("Web Vital {MetricName}: {Value} ({Rating}, {NavigationType}), entry route {PageRoute}",
-                name, measurement, rating, navigationType, _entryRoute ?? "[unmatched]");
+                name, measurement, rating, navigationType, _entryRoute ?? UnmatchedRoute);
         }
     }
 
@@ -162,16 +161,16 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
             return;
         }
         _pageNavigation = null;
-        var tags = new TagList
-        {
-            { "page.route", page.Route },
-            { "browser.navigation.type", page.Id == 0 ? "initial" : "navigation" }
-        };
+        TagList tags =
+        [
+            new(PageRouteAttribute, page.Route),
+            new("browser.navigation.type", page.Id == 0 ? "initial" : "navigation")
+        ];
         tags.Add("browser.navigation.phase", "route_match");
         _navigationDuration.Record(page.MatchDuration / 1000, tags);
-        tags[tags.Count - 1] = new("browser.navigation.phase", "render_frame");
+        tags[^1] = new("browser.navigation.phase", "render_frame");
         _navigationDuration.Record(frameDuration / 1000, tags);
-        tags[tags.Count - 1] = new("browser.navigation.phase", "first_frame");
+        tags[^1] = new("browser.navigation.phase", "first_frame");
         _navigationDuration.Record(duration / 1000, tags);
         tags.Add("page.previous.route", page.PreviousRoute);
         using var activity = _activities.StartActivity("browser.page.navigation", ActivityKind.Internal,
@@ -186,10 +185,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
 
     public void Dispose()
     {
-        if (_navigationManager is not null)
-        {
-            _navigationManager.LocationChanged -= OnLocationChanged;
-        }
+        _navigationManager?.LocationChanged -= OnLocationChanged;
         _routes?.Dispose();
         _requests?.Dispose();
         try
@@ -208,7 +204,7 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
     private Measurement<double>[] ObserveVital(string name)
     {
         return _vitals.TryGetValue(name, out double value)
-            ? [new Measurement<double>(value, new KeyValuePair<string, object?>("page.route", _entryRoute ?? "[unmatched]"))] : [];
+            ? [new Measurement<double>(value, new KeyValuePair<string, object?>(PageRouteAttribute, _entryRoute ?? UnmatchedRoute))] : [];
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs args)
@@ -256,15 +252,15 @@ internal sealed class BrowserPerformanceTelemetry(ILogger<BrowserPerformanceTele
         route ??= _currentRoute;
         if (route is not null)
         {
-            activity.SetTag("page.route", route);
+            activity.SetTag(PageRouteAttribute, route);
         }
     }
 
     private void OnRequestStopped(Activity activity)
     {
-        if (activity.GetTagItem("page.route") is string route)
+        if (activity.GetTagItem(PageRouteAttribute) is string route)
         {
-            _httpDuration.Record(activity.Duration.TotalSeconds, new KeyValuePair<string, object?>("page.route", route));
+            _httpDuration.Record(activity.Duration.TotalSeconds, new KeyValuePair<string, object?>(PageRouteAttribute, route));
         }
     }
 

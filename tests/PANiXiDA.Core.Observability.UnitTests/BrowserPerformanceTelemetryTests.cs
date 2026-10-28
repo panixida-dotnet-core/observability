@@ -191,6 +191,7 @@ public sealed partial class BrowserPerformanceTelemetryTests
                 {
                     MetricType.Histogram => point.GetHistogramSum(),
                     MetricType.DoubleSum => point.GetSumDouble(),
+                    MetricType.LongSum or MetricType.LongSumNonMonotonic => point.GetSumLong(),
                     _ => point.GetGaugeLastValueDouble()
                 };
             }

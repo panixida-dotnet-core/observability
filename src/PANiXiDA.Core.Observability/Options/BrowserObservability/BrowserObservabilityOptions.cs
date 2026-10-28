@@ -8,6 +8,7 @@ internal sealed class BrowserObservabilityOptions
     public const string EndpointKey = "OTEL_EXPORTER_OTLP_ENDPOINT";
     public const string MaxRequestSizeBytesKey = "OpenTelemetry:Otlp:MaxRequestSizeBytes";
     public const string PerformanceEnabledKey = "BrowserTelemetry:Performance:Enabled";
+    public const string RuntimeEnabledKey = "BrowserTelemetry:Runtime:Enabled";
     public const string JavaScriptErrorsEnabledKey = "BrowserTelemetry:JavaScriptErrors:Enabled";
     public const string JavaScriptErrorsPerMinuteKey = "BrowserTelemetry:JavaScriptErrors:MaxPerMinute";
     public const int MinimumRequestSizeBytes = 750000;
@@ -24,6 +25,9 @@ internal sealed class BrowserObservabilityOptions
 
     [ConfigurationKeyName(PerformanceEnabledKey)]
     public bool PerformanceEnabled { get; set; } = true;
+
+    [ConfigurationKeyName(RuntimeEnabledKey)]
+    public bool RuntimeEnabled { get; set; } = true;
 
     [ConfigurationKeyName(JavaScriptErrorsEnabledKey)]
     public bool JavaScriptErrorsEnabled { get; set; } = true;

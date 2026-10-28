@@ -137,6 +137,18 @@ without an endpoint; enabled export requires a nonblank service name. Options
 validation checks the name, HTTP/HTTPS endpoint, and optional request limit.
 A generated `service.instance.id` is shared by all signals for the lifetime of
 each WASM runtime.
+Runtime metrics are enabled by default (`BrowserTelemetry:Runtime:Enabled=false`
+opts out): allocations, GC collection counts and memory snapshots, assemblies,
+exceptions, timers, lock contention and thread-pool state. Supported measurements
+use `System.Runtime`; Mono GC counts are exported directly per generation.
+`browser.runtime.gc.heap.size` reports current managed memory without forcing GC;
+`browser.runtime.gc.last_collection.heap.size` and `.heap.fragmentation.size`
+report aggregate GC snapshots. Unsupported per-generation sizes, pause/JIT timing,
+working set and completed thread-pool work counters are omitted. Runtime metrics
+describe one WASM runtime, not the whole browser. Allocation totals and GC snapshots
+can lag until collection; sampling never forces a GC. Existing Blazor/HTTP traces and
+application logs continue through the same exporters; runtime profiling dumps are
+not collected.
 The SDK includes the browser initializer and Google `web-vitals` 6.2.3 locally.
 It records `browser.wasm.startup.duration` by phase (`runtime`,
 `document_to_runtime`, `first_frame`), framework resource counts, accumulated

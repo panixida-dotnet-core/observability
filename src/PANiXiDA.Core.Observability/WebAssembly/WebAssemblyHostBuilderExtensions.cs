@@ -88,6 +88,12 @@ public static class WebAssemblyHostBuilderExtensions
                     .AddView("browser.wasm.startup.duration", durations)
                     .AddHttpClientInstrumentation()
                     .AddOtlpExporter("metrics", configure: null);
+                if (settings.RuntimeEnabled)
+                {
+                    metrics.AddMeter("System.Runtime", BrowserRuntimeMetrics.SourceName)
+                        .AddInstrumentation(() => new BrowserRuntimeMetrics())
+                        .AddView(BrowserRuntimeMetrics.ConfigureInstrument);
+                }
             })
             .WithLogging(logging => logging.AddOtlpExporter("logs", configureExporter: null), options =>
             {

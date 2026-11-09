@@ -82,8 +82,17 @@ public sealed class SignalRTelemetryTests
 
     public sealed class TelemetryHub : Hub
     {
-        public string Echo(string value) => value;
-        public void Fail() => throw new InvalidOperationException("Expected hub failure");
+        public string Echo(string value)
+        {
+            Context.ConnectionAborted.ThrowIfCancellationRequested();
+            return value;
+        }
+
+        public void Fail()
+        {
+            Context.ConnectionAborted.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("Expected hub failure");
+        }
     }
 
     private sealed class RecordingExporter(Action<Activity> record) : BaseExporter<Activity>

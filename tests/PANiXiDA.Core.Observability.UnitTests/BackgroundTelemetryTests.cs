@@ -59,8 +59,18 @@ public sealed class BackgroundTelemetryTests
     [InlineData("Microsoft.AspNetCore.SignalR.Server", "Microsoft.AspNetCore.SignalR.Server.InvocationIn", ActivityKind.Server)]
     public void AddObservability_ShouldCollectBackgroundTraces(string sourceName, string operationName, ActivityKind kind)
     {
+        var parent = new ActivityContext(
+            ActivityTraceId.CreateRandom(),
+            ActivitySpanId.CreateRandom(),
+            ActivityTraceFlags.Recorded);
         var activities = new ConcurrentBag<Activity>();
-        using var exporter = new RecordingExporter<Activity>(activities.Add);
+        using var exporter = new RecordingExporter<Activity>(activity =>
+        {
+            if (activity.Source.Name == sourceName && activity.TraceId == parent.TraceId)
+            {
+                activities.Add(activity);
+            }
+        });
         using var processor = new SimpleActivityExportProcessor(exporter);
         var builder = CreateBuilder();
         builder.AddObservability();
@@ -69,14 +79,15 @@ public sealed class BackgroundTelemetryTests
         using var app = builder.Build();
         _ = app.Services.GetRequiredService<TracerProvider>();
         using var source = new ActivitySource(sourceName);
-        var parent = new ActivityContext(
-            ActivityTraceId.CreateRandom(),
-            ActivitySpanId.CreateRandom(),
-            ActivityTraceFlags.Recorded);
 
         using (var activity = source.StartActivity(operationName, kind, parent))
         {
             activity.ShouldNotBeNull();
+        }
+        var unrelatedParent = new ActivityContext(ActivityTraceId.CreateRandom(), ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded);
+        using (var unrelated = source.StartActivity(operationName, kind, unrelatedParent))
+        {
+            unrelated.ShouldNotBeNull();
         }
 
         var exportedActivity = activities.ShouldHaveSingleItem();

@@ -265,6 +265,21 @@ or alert rules.
 
 See [Quartz observability](https://www.quartz-scheduler.net/documentation/quartz-4.x/packages/opentelemetry-integration).
 
+### SignalR
+
+`AddObservability()` collects the built-in `Microsoft.AspNetCore.SignalR.Server`
+activities through `AddAspNetCoreInstrumentation()`. The installed OpenTelemetry
+ASP.NET Core instrumentation enables `EnableAspNetCoreSignalRSupport` by default;
+no additional `AddSource`, SignalR instrumentation package, or application call
+is required. Applications without SignalR emit no SignalR activities.
+
+Hub method calls and connection lifecycle activities use the existing trace
+sampler and OTLP exporter. Failed hub calls retain the framework's error status.
+SignalR logs use the existing `ILogger` pipeline and logging filters; subscribing
+to traces does not enable verbose logging or add logs for outgoing notifications.
+
+See [SignalR tracing](https://learn.microsoft.com/aspnet/core/signalr/diagnostics#tracing-in-signalr).
+
 ### Production Minimum
 
 No OTLP exporter key is mandatory when the collector is available at the OpenTelemetry defaults. In production, configure only the values that differ from those defaults.

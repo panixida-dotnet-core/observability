@@ -98,6 +98,21 @@ Set the service name outside the package with OpenTelemetry resource configurati
 OTEL_SERVICE_NAME=orders-api
 ```
 
+### Static asset metrics
+
+Call `GroupStaticAssetMetrics()` on the builder returned by `MapStaticAssets()` to use
+`http.route=static-assets` for the mapped files. Request counts, status codes, and
+latencies remain available for the group. Application routes keep their own labels.
+
+```csharp
+app.MapStaticAssets()
+    .GroupStaticAssetMetrics()
+    .ShortCircuit();
+```
+
+The extension changes route diagnostics metadata and preserves asset URLs and response
+headers. Repeated calls on the same builder add the label only once per endpoint.
+
 ### Blazor WebAssembly
 
 ```csharp
